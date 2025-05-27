@@ -1,0 +1,73 @@
+# Archivos generados por Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Archivos de entorno virtual
+venv/
+ENV/
+env/
+.env
+.venv
+
+# Archivos de configuración local
+*.ini
+config_local.json
+
+# Archivos de salida generados
+PDF-Extension/output/*
+!PDF-Extension/output/.gitkeep
+Clipboard-Extension/output/*
+!Clipboard-Extension/output/.gitkeep
+
+# Archivos temporales
+PDF-Extension/temp/*
+!PDF-Extension/temp/.gitkeep
+Clipboard-Extension/temp/*
+!Clipboard-Extension/temp/.gitkeep
+PDF-Extension/storage/temp/*
+!PDF-Extension/storage/temp/.gitkeep
+
+# Caché
+PDF-Extension/__pycache__/
+Clipboard-Extension/__pycache__/
+
+# Archivos específicos a excluir
+PDF-Extension/gs_config.json
+
+# Logs
+*.log
+logs/
+log/
+
+# Archivos del sistema operativo
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDEs y editores
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.project
+.pydevproject
+.settings/
