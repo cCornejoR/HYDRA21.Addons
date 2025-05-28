@@ -52,54 +52,53 @@ class ModernThemes:
             'input_border': '#dadce0',
             'input_focused_border': '#000000',
         }
-    
     @staticmethod
     def get_dark_theme():
         """Tema oscuro - minimalista negro"""
         return {
             # Colores principales
-            'primary': '#ffffff',
-            'primary_variant': '#e8eaed',
+            'primary': '#4285f4',
+            'primary_variant': '#3367d6',
             'secondary': '#9aa0a6',
             
             # Colores de superficie
-            'background': '#202124',
-            'surface': '#303134',
-            'surface_variant': '#3c4043',
+            'background': '#121212',
+            'surface': '#1e1e1e',
+            'surface_variant': '#2d2d2d',
             
             # Colores de texto
             'on_background': '#ffffff',
-            'on_surface': '#e8eaed',
-            'on_surface_variant': '#9aa0a6',
+            'on_surface': '#ffffff',
+            'on_surface_variant': '#b3b3b3',
             
             # Estados
-            'success': '#ffffff',
-            'success_bg': '#2d3032',
-            'error': '#ffffff',
-            'error_bg': '#2d2d2d',
-            'warning': '#e8eaed',
-            'warning_bg': '#35363a',
+            'success': '#34a853',
+            'success_bg': '#1a2e1a',
+            'error': '#ea4335',
+            'error_bg': '#2e1a1a',
+            'warning': '#fbbc04',
+            'warning_bg': '#2e2a1a',
             
             # Bordes y divisores
-            'border': '#5f6368',
-            'border_variant': '#3c4043',
-            'divider': '#3c4043',
+            'border': '#404040',
+            'border_variant': '#333333',
+            'divider': '#333333',
             
             # Efectos
-            'shadow': '#00000030',
-            'hover': '#35363a',
-            'pressed': '#48494d',
+            'shadow': '#00000050',
+            'hover': '#333333',
+            'pressed': '#404040',
             
             # Específicos para componentes
-            'card_bg': '#303134',
-            'card_border': '#3c4043',
-            'button_primary_bg': '#ffffff',
-            'button_primary_text': '#000000',
-            'button_secondary_bg': '#3c4043',
+            'card_bg': '#1e1e1e',
+            'card_border': '#333333',
+            'button_primary_bg': '#4285f4',
+            'button_primary_text': '#ffffff',
+            'button_secondary_bg': '#333333',
             'button_secondary_text': '#ffffff',
-            'input_bg': '#303134',
-            'input_border': '#5f6368',
-            'input_focused_border': '#ffffff',
+            'input_bg': '#2d2d2d',
+            'input_border': '#404040',
+            'input_focused_border': '#4285f4',
         }
 
 class ThemeManager:

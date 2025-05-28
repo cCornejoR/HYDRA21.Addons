@@ -1,0 +1,13 @@
+{
+  "version": 2,
+  "dgSpecHash": "NKL8ZH4eahg=",
+  "success": true,
+  "projectFilePath": "D:\\HYDRA21_APP\\DESKTOP\\hydra21.addons\\NaturalRegrade-ExtensionC3D\\NaturalRegrade-extension.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\crhistian.cornejo\\.nuget\\packages\\materialdesigncolors\\2.1.4\\materialdesigncolors.2.1.4.nupkg.sha512",
+    "C:\\Users\\crhistian.cornejo\\.nuget\\packages\\materialdesignthemes\\4.9.0\\materialdesignthemes.4.9.0.nupkg.sha512",
+    "C:\\Users\\crhistian.cornejo\\.nuget\\packages\\mathnet.numerics\\5.0.0\\mathnet.numerics.5.0.0.nupkg.sha512",
+    "C:\\Users\\crhistian.cornejo\\.nuget\\packages\\microsoft.xaml.behaviors.wpf\\1.1.39\\microsoft.xaml.behaviors.wpf.1.1.39.nupkg.sha512"
+  ],
+  "logs": []
+}

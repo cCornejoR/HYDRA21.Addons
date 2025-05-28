@@ -9,13 +9,13 @@ import glob
 import sys
 from pathlib import Path
 from typing import Optional
-import datetime # Moved import datetime to the top
+import datetime
 
 # Importar módulos del proyecto
 from themes import ThemeManager, ModernThemes, create_modern_button, create_modern_card
 from settings import GS_PRESETS, DEFAULT_PRESET, CONFIG_FILE
 from utils import FileUtils, GhostscriptUtils, ConfigManager
-from compressor_logic import PDFCompressor, CompressionStats
+from compressor_logic import PDFCompressor, CompressionStats, BatchCompressionStats, BatchCompressionResult
 
 class HYDRA21_PDFCompressor:
     """Aplicación profesional de compresión PDF con UI moderna y compacta"""
@@ -24,16 +24,22 @@ class HYDRA21_PDFCompressor:
         self.page = page
         self.theme_manager = ThemeManager()
         self.config_manager = ConfigManager()
-        self.pdf_compressor = PDFCompressor()
+        
+        # Configurar carpeta de salida por defecto en Documents/HYDRA21-PDFCompressor
+        documents_dir = Path.home() / "Documents"
+        self.output_dir = documents_dir / "HYDRA21-PDFCompressor"
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Inicializar compresor con la carpeta configurada
+        self.pdf_compressor = PDFCompressor(output_dir=self.output_dir)
         self.file_utils = FileUtils()
         self.gs_utils = GhostscriptUtils()
         
         # Estado de la aplicación
-        self.selected_file: Optional[Path] = None
+        self.selected_files: list[Path] = []
         self.is_processing = False
         self.compression_stats: Optional[CompressionStats] = None
-        self.output_dir = Path("output")
-        self.output_dir.mkdir(parents=True, exist_ok=True)
+        self.batch_stats: Optional[BatchCompressionStats] = None
         
         # Configurar página
         self.setup_page()
@@ -50,32 +56,30 @@ class HYDRA21_PDFCompressor:
     def setup_page(self):
         """Configurar propiedades de la página"""
         self.page.title = "HYDRA21 PDF Compressor"
-        self.page.window_width = 200
-        self.page.window_height = 850
-        self.page.window_min_width = 200
-        self.page.window_min_height = 850
-        self.page.window_max_width = 200
-        self.page.window_max_height = 680
+        self.page.theme_mode = ft.ThemeMode.LIGHT
+        self.page.window.width = 640
+        self.page.window.height = 720
+        self.page.window.resizable = True
+        self.page.window.title_bar_hidden = False
+        self.page.padding = 0
 
         # Deshabilitar redimensionar y maximizar
         self.page.window_resizable = False
         self.page.window_maximizable = False
         self.page.window_fullscreen = False
 
-        # Capturar eventos de ventana para evitar “escapes”
+        # Capturar eventos de ventana para evitar "escapes"
         def on_window_event(e: ft.WindowEvent):
             if e.data == "maximize" or e.data == "resize":
                 # rehacer el tamaño fijo
-                self.page.window_width = 450
-                self.page.window_height = 680
+                self.page.window_width = 640
+                self.page.window_height = 720
                 self.page.update()
-
+        
         self.page.on_window_event = on_window_event
         
-        # Configurar icono
-        icon_path = Path("assets/icons/logo32x32.ico")
-        if icon_path.exists():
-            self.page.window_icon = str(icon_path.absolute())
+        # Configurar icono de la aplicación
+        self.configure_app_icon()
         
         self.apply_theme()
     
@@ -85,6 +89,38 @@ class HYDRA21_PDFCompressor:
         self.page.theme_mode = ft.ThemeMode.DARK if self.theme_manager.is_dark else ft.ThemeMode.LIGHT
         self.page.bgcolor = theme['background']
         self.page.update()
+    
+    def configure_app_icon(self):
+        """Configurar icono de la aplicación para desarrollo y builds"""
+        try:
+            # Intentar primero con la ruta relativa para desarrollo
+            icon_path = Path("assets/icons/logo32x32.ico")
+            
+            if icon_path.exists():
+                self.page.window.icon = str(icon_path.absolute())
+                print(f"Icono configurado desde: {icon_path}")
+                return
+            
+            # Si no existe, intentar desde el directorio de la aplicación
+            app_dir = Path(__file__).parent
+            icon_path = app_dir / "assets" / "icons" / "logo32x32.ico"
+            
+            if icon_path.exists():
+                self.page.window.icon = str(icon_path.absolute())
+                print(f"Icono configurado desde directorio de app: {icon_path}")
+                return
+            
+            # Como fallback, usar el icono de 256x256 si está disponible
+            icon_path_fallback = app_dir / "assets" / "icons" / "logo256x256.ico"
+            if icon_path_fallback.exists():
+                self.page.window.icon = str(icon_path_fallback.absolute())
+                print(f"Icono configurado (fallback): {icon_path_fallback}")
+                return
+            
+            print("Advertencia: No se pudo encontrar el icono de la aplicación")
+            
+        except Exception as e:
+            print(f"Error configurando icono: {e}")
     
     def create_controls(self):
         """Crear todos los controles de la UI"""
@@ -96,8 +132,9 @@ class HYDRA21_PDFCompressor:
         # Drop zone para archivos
         self.drop_zone = self.create_drop_zone()
         
-        # Información del archivo seleccionado
-        self.file_info = ft.Container(visible=False)
+        # Información del archivo seleccionado - dos columnas
+        self.files_list_container = ft.Column(spacing=10)
+        self.files_list_container_right = ft.Column(spacing=10)
         
         # Selector de calidad
         self.quality_selector = self.create_quality_selector()
@@ -107,24 +144,23 @@ class HYDRA21_PDFCompressor:
             content=ft.Row(
                 [
                     ft.Icon(ft.Icons.COMPRESS, color="white", size=18),
-                    ft.Text("Comprimir PDF", size=15, weight=ft.FontWeight.W_600, color="white")
+                    ft.Text("Comprimir PDFs", size=15, weight=ft.FontWeight.W_600, color="white")
                 ],
                 alignment=ft.MainAxisAlignment.CENTER,
                 spacing=8
             ),
-            width=410,
             height=50,
             bgcolor=theme['button_primary_bg'],
             border_radius=12,
             padding=ft.padding.all(12),
             alignment=ft.alignment.center,
-            on_click=self.compress_pdf,
+            on_click=self.compress_pdfs,
             animate=ft.Animation(200, ft.AnimationCurve.EASE_OUT),
             shadow=ft.BoxShadow(
                 spread_radius=0,
-                blur_radius=5,
+                blur_radius=8,
                 color=theme['shadow'],
-                offset=ft.Offset(0, 2)
+                offset=ft.Offset(0, 3)
             )
         )
         self.compress_button.disabled = True
@@ -200,29 +236,27 @@ class HYDRA21_PDFCompressor:
                     offset=ft.Offset(0, 2)
                 )
             ),
-            ft.Text("Arrastra un archivo PDF aquí", 
+            ft.Text("Arrastra archivos PDF aquí", 
                    size=16, 
                    weight=ft.FontWeight.W_500, 
                    color=theme['on_surface']),
             ft.Text("o", size=14, color=theme['on_surface_variant']),
             create_modern_button(
-                text="Seleccionar archivo",
+                text="Seleccionar archivos",
                 icon=ft.Icons.FOLDER_OPEN,
                 on_click=self.pick_file,
                 style="primary",
                 theme=theme
             )
-        ], 
-        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-        spacing=15)
+        ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=15)
         
         return ft.Container(
             content=self.drop_zone_content,
-            padding=ft.padding.symmetric(horizontal=30, vertical=35),
+            padding=ft.padding.symmetric(horizontal=16, vertical=20),
             border=ft.border.all(1, theme['border_variant']),
             border_radius=16,
             bgcolor=theme['surface_variant'],
-            margin=ft.margin.only(left=16, right=16, top=20, bottom=10),
+            margin=ft.margin.all(4),
             on_click=self.pick_file,
             animate=ft.Animation(200, ft.AnimationCurve.EASE_OUT)
         )
@@ -290,52 +324,70 @@ class HYDRA21_PDFCompressor:
             theme=theme
         )
     
-    def create_file_info_card(self, file_path: Path):
-        """Crear tarjeta con información del archivo"""
+    def create_file_info_card(self, file_path: Path, on_remove=None):
+        """Crear tarjeta con información del archivo y botón de eliminar"""
         theme = self.theme_manager.get_theme()
         
         file_size = self.file_utils.get_file_size(file_path)
         
+        card_content = [
+            ft.Row([
+                ft.Icon(ft.Icons.DESCRIPTION, color=theme['primary'], size=20),
+                ft.Column([
+                    ft.Text(file_path.name,
+                           size=14,
+                           weight=ft.FontWeight.W_500,
+                           color=theme['on_surface'],
+                           overflow=ft.TextOverflow.ELLIPSIS),
+                    ft.Text(f"Tamaño: {file_size}",
+                           size=12,
+                           color=theme['on_surface_variant'])
+                ], spacing=4, expand=True),
+                ft.IconButton(
+                    icon="close",
+                    icon_color=theme['on_surface_variant'],
+                    icon_size=20,
+                    on_click=on_remove,
+                    tooltip="Quitar archivo"
+                )
+            ], spacing=12, vertical_alignment=ft.CrossAxisAlignment.CENTER)
+        ]
+        
         return create_modern_card(
-            content=[
-                ft.Row([
-                    ft.Icon(ft.Icons.DESCRIPTION, color=theme['primary'], size=20),
-                    ft.Text("Archivo seleccionado", 
-                           size=16, 
-                           weight=ft.FontWeight.W_600, 
-                           color=theme['on_surface'])
-                ], spacing=8),
-                ft.Text(file_path.name, 
-                       size=14, 
-                       weight=ft.FontWeight.W_500, 
-                       color=theme['on_surface']),
-                ft.Text(f"Tamaño: {file_size}", 
-                       size=12, 
-                       color=theme['on_surface_variant'])
-            ],
-            theme=theme
+            content=card_content,
+            theme=theme,
+            padding=ft.padding.symmetric(horizontal=16, vertical=12)
         )
     
-    def create_progress_indicator(self):
+    def create_progress_indicator(self, is_batch=False, current_file="", progress=None):
         """Crear indicador de progreso"""
         theme = self.theme_manager.get_theme()
+        
+        if is_batch and progress:
+            current, total = progress
+            progress_text = f"Procesando archivo {current} de {total}"
+            detail_text = f"Archivo actual: {current_file}" if current_file else "Preparando..."
+        else:
+            progress_text = "Comprimiendo PDF..."
+            detail_text = "Este proceso puede tomar unos momentos."
         
         return create_modern_card(
             content=[
                 ft.Row([
-                    ft.ProgressRing(width=32, height=32, stroke_width=3, color=theme['primary']), # Aumentar tamaño y grosor
-                    ft.Text("Comprimiendo PDF...", 
-                           size=16, # Aumentar tamaño de fuente
-                           weight=ft.FontWeight.W_500, # Ajustar peso de fuente
-                           color=theme['on_surface'])
-                ], spacing=16, vertical_alignment=ft.CrossAxisAlignment.CENTER), # Aumentar espaciado y centrar verticalmente
-                ft.Container(height=4), # Pequeño espacio
-                ft.Text("Este proceso puede tomar unos momentos.", 
-                       size=13, # Aumentar tamaño de fuente 
-                       color=theme['on_surface_variant'])
+                    ft.ProgressRing(width=32, height=32, stroke_width=3, color=theme['primary']),
+                    ft.Column([
+                        ft.Text(progress_text, 
+                               size=16,
+                               weight=ft.FontWeight.W_500,
+                               color=theme['on_surface']),
+                        ft.Text(detail_text, 
+                               size=13,
+                               color=theme['on_surface_variant'])
+                    ], spacing=4, expand=True)
+                ], spacing=16, vertical_alignment=ft.CrossAxisAlignment.CENTER)
             ],
             theme=theme,
-            padding=ft.padding.all(20) # Aumentar padding general de la tarjeta
+            padding=ft.padding.all(20)
         )
     
     def create_results_card(self, stats: CompressionStats):
@@ -387,47 +439,91 @@ class HYDRA21_PDFCompressor:
             theme=theme
         )
     
-    def create_gs_status_error(self):
-        """Crear tarjeta de error de Ghostscript"""
+    def create_batch_results_card(self, batch_stats: BatchCompressionStats):
+        """Crear tarjeta con resultados de compresión por lotes"""
         theme = self.theme_manager.get_theme()
         
-        return create_modern_card(
-            content=[
+        content = [
+            ft.Row([
+                ft.Icon(ft.Icons.CHECK_CIRCLE, color=theme['success'], size=20),
+                ft.Text("Compresión por lotes completada", 
+                       size=16, 
+                       weight=ft.FontWeight.W_600, 
+                       color=theme['on_surface'])
+            ], spacing=8),
+            ft.Column([
                 ft.Row([
-                    ft.Icon(ft.Icons.ERROR, color=theme['error'], size=20),
-                    ft.Text("Ghostscript no encontrado", 
-                           size=16, 
-                           weight=ft.FontWeight.W_600, 
-                           color=theme['on_surface'])
-                ], spacing=8),
-                ft.Text("Se requiere Ghostscript para comprimir archivos PDF. "
-                       "Por favor, instala Ghostscript e intenta nuevamente.", 
-                       size=12, 
-                       color=theme['on_surface_variant']),
-                create_modern_button(
-                    text="Descargar Ghostscript",
-                    icon=ft.Icons.DOWNLOAD,
-                    on_click=lambda _: self.open_ghostscript_download(),
-                    style="primary",
-                    theme=theme
-                )
-            ],
-            theme=theme
-        )
-    
-    def build_ui(self):
-        """Construir la interfaz de usuario"""
-        theme = self.theme_manager.get_theme()
+                    ft.Text("Archivos procesados:", size=12, color=theme['on_surface_variant']),
+                    ft.Text(f"{batch_stats.successful_files}/{batch_stats.total_files}", 
+                           size=12, weight=ft.FontWeight.W_500, color=theme['on_surface'])
+                ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+                ft.Row([
+                    ft.Text("Tamaño original total:", size=12, color=theme['on_surface_variant']),
+                    ft.Text(batch_stats.total_original_size_str, 
+                           size=12, weight=ft.FontWeight.W_500, color=theme['on_surface'])
+                ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+                ft.Row([
+                    ft.Text("Tamaño comprimido total:", size=12, color=theme['on_surface_variant']),
+                    ft.Text(batch_stats.total_compressed_size_str, 
+                           size=12, weight=ft.FontWeight.W_500, color=theme['on_surface'])
+                ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+                ft.Row([
+                    ft.Text("Reducción total:", size=12, color=theme['on_surface_variant']),
+                    ft.Text(f"{batch_stats.total_reduction_percent:.1f}%", 
+                           size=12, weight=ft.FontWeight.W_500, color=theme['success'])
+                ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+            ], spacing=4)
+        ]
         
-        # Footer con información
+        # Añadir lista de errores si los hay
+        if batch_stats.failed_files_list:
+            content.append(ft.Container(height=8))
+            content.append(ft.Text("Archivos con errores:", 
+                                  size=12, 
+                                  weight=ft.FontWeight.W_500,
+                                  color=theme['error']))
+            for error in batch_stats.failed_files_list[:3]:  # Mostrar máximo 3 errores
+                content.append(ft.Text(f"• {error}", 
+                                     size=11, 
+                                     color=theme['on_surface_variant']))
+            if len(batch_stats.failed_files_list) > 3:
+                content.append(ft.Text(f"... y {len(batch_stats.failed_files_list) - 3} más", 
+                                     size=11, 
+                                     color=theme['on_surface_variant']))
+        
+        # Botones de acción
+        content.append(ft.Container(height=8))
+        content.append(ft.Row([
+            create_modern_button(
+                text="Abrir carpeta",
+                icon=ft.Icons.FOLDER_OPEN,
+                on_click=lambda _: self.open_output_folder(self.output_dir),
+                style="primary",
+                theme=theme
+            ),
+            create_modern_button(
+                text="Nueva compresión",
+                icon=ft.Icons.REFRESH,
+                on_click=lambda _: self.reset_ui(),
+                style="secondary",
+                theme=theme
+            )
+        ], spacing=12))
+        
+        return create_modern_card(content=content, theme=theme)
+
+
+    def build_ui(self):
+        theme = self.theme_manager.get_theme()
+
         footer = ft.Container(
             content=ft.Row(
                 [
                     ft.Row(
                         [
                             ft.Icon(ft.Icons.INFO_OUTLINE_ROUNDED, size=14, color=theme['on_surface_variant']),
-                            ft.Text(f"Un addon de HYDRA²¹ v1.0.0 © {datetime.date.today().year}", size=11, color=theme['on_surface_variant']) # Año dinámico
-                        ], 
+                            ft.Text(f"Un addon de HYDRA²¹ v1.0.0 © {datetime.date.today().year}", size=11, color=theme['on_surface_variant'])
+                        ],
                         spacing=5
                     ),
                 ],
@@ -437,43 +533,84 @@ class HYDRA21_PDFCompressor:
             bgcolor=theme['surface'],
             border=ft.border.only(top=ft.BorderSide(1, theme['border']))
         )
-        
+
+        # Altura corregida de contenedores principales
+        fixed_height = 290
+
+        main_row = ft.Row(
+            [
+                ft.Container(content=self.drop_zone, width=300, height=fixed_height, padding=ft.padding.only(right=4)),
+                ft.Container(content=self.quality_selector, width=300, height=fixed_height, padding=ft.padding.only(left=4)),
+            ],
+            spacing=0,
+            vertical_alignment=ft.CrossAxisAlignment.START,
+            alignment=ft.MainAxisAlignment.CENTER,
+        )
+
+        # Contenedor de archivos (ya vienen llenos desde update_files_list)
+        files_section = ft.Container(
+            content=ft.Column([
+                # Encabezado
+                ft.Container(
+                    content=ft.Row([
+                        ft.Text(
+                            f"{len(self.selected_files)} archivo{'s' if len(self.selected_files) != 1 else ''} seleccionado{'s' if len(self.selected_files) != 1 else ''}",
+                            size=14,
+                            weight=ft.FontWeight.W_500,
+                            color=theme['on_surface']
+                        ),
+                        ft.TextButton(
+                            "Limpiar todo",
+                            on_click=lambda _: self.clear_files_list(),
+                            style=ft.ButtonStyle(
+                                color=theme['primary'],
+                                text_style=ft.TextStyle(size=12)
+                            )
+                        )
+                    ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+                    padding=ft.padding.symmetric(horizontal=12, vertical=6)
+                ),
+
+                # Las columnas reales, sin alterar sus contenidos
+                ft.Row([
+                    ft.Container(content=self.files_list_container, expand=True, padding=ft.padding.symmetric(horizontal=6)),
+                    ft.Container(content=self.files_list_container_right, expand=True, padding=ft.padding.symmetric(horizontal=6))
+                ])
+            ]),
+            padding=ft.padding.only(top=10)
+        )
+
         self.page.controls = [
             self.header,
             ft.Container(
-                content=ft.Column(
-                    [
-                        self.drop_zone,
-                        self.file_info,
-                        self.quality_selector,
-                        ft.Container(
-                            content=self.compress_button,
-                            padding=ft.padding.symmetric(horizontal=16),
-                            margin=ft.margin.only(top=10, bottom=10), # Ajustar margen
-                            alignment=ft.alignment.center
-                        ),
-                        # Asegurar que el contenedor de progreso tenga espacio y sea visible
-                        ft.Container( 
-                            content=self.progress_container,
-                            alignment=ft.alignment.center,
-                            padding=ft.padding.symmetric(horizontal=16, vertical=10) # Añadir padding
-                        ),
-                        self.results_container,
-                        self.gs_status,
-                        ft.Container(height=1, expand=True)  # Spacer para empujar el footer al fondo
-                    ],
+                content=ft.Column([
+                    main_row,
+                    files_section,
+                    ft.Container(
+                        content=self.compress_button,
+                        padding=ft.padding.symmetric(horizontal=16),
+                        margin=ft.margin.only(top=15, bottom=10),
+                        alignment=ft.alignment.center
+                    ),
+                    ft.Container(content=self.progress_container, alignment=ft.alignment.center, padding=ft.padding.symmetric(horizontal=16, vertical=10)),
+                    self.results_container,
+                    self.gs_status,
+                    ft.Container(height=1, expand=True)
+                ],
                     spacing=15,
                     expand=True,
-                    horizontal_alignment=ft.CrossAxisAlignment.CENTER, # Centrar elementos horizontalmente
-                    scroll=ft.ScrollMode.ADAPTIVE  # <<< Habilitar autoscroll
+                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                    scroll=ft.ScrollMode.ADAPTIVE
                 ),
                 expand=True,
-                padding=ft.padding.only(bottom=10)
+                padding=ft.padding.symmetric(horizontal=8, vertical=10)
             ),
             footer
         ]
+
         self.page.update()
-    
+
+
     def toggle_theme(self, e):
         """Alternar entre tema claro y oscuro"""
         self.theme_manager.toggle_theme()
@@ -485,82 +622,57 @@ class HYDRA21_PDFCompressor:
         # Recrear controles con el nuevo tema
         self.create_controls()
         self.build_ui()
-        
-        # Restaurar estado si hay archivo seleccionado
-        if self.selected_file:
-            self.show_file_info(self.selected_file)
     
     def pick_file(self, e):
         """Abrir selector de archivos"""
         def file_picker_result(e: ft.FilePickerResultEvent):
             if e.files:
-                file_path = Path(e.files[0].path)
-                if file_path.suffix.lower() == '.pdf':
-                    self.select_file(file_path)
-                else:
-                    self.show_error("Por favor selecciona un archivo PDF válido")
+                for file in e.files:
+                    file_path = Path(file.path)
+                    if file_path.suffix.lower() == '.pdf':
+                        self.add_file_to_list(file_path)
+                    else:
+                        self.show_error(f"Archivo no válido: {file_path.name}. Por favor selecciona solo archivos PDF.")
         
         file_picker = ft.FilePicker(on_result=file_picker_result)
         self.page.overlay.append(file_picker)
         self.page.update()
         
         file_picker.pick_files(
-            dialog_title="Seleccionar archivo PDF",
+            dialog_title="Seleccionar archivos PDF",
             file_type=ft.FilePickerFileType.CUSTOM,
-            allowed_extensions=["pdf"]
+            allowed_extensions=["pdf"],
+            allow_multiple=True
         )
     
-    def select_file(self, file_path: Path):
-        """Seleccionar archivo PDF"""
-        self.selected_file = file_path
-        self.show_file_info(file_path)
-        self.compress_button.disabled = False
-        self.page.update()
-    
-    def show_file_info(self, file_path: Path):
-        """Mostrar información del archivo seleccionado"""
-        self.file_info.content = self.create_file_info_card(file_path)
-        self.file_info.visible = True
-        
-        # Ocultar drop zone y mostrar solo un botón pequeño
-        theme = self.theme_manager.get_theme()
-        self.drop_zone.content = ft.Container(
-            content=create_modern_button(
-                text="Cambiar archivo",
-                icon=ft.Icons.SWAP_HORIZ,
-                on_click=self.pick_file,
-                style="secondary",
-                theme=theme
-            ),
-            padding=ft.padding.all(12)
-        )
-        
-        self.page.update()
-    
-    def compress_pdf(self, e):
-        """Comprimir archivo PDF"""
-        if not self.selected_file or self.is_processing:
+    def compress_pdfs(self, e):
+        """Comprimir archivos PDF (individual o por lotes)"""
+        if not self.selected_files or self.is_processing:
             return
         
         self.is_processing = True
         self.compress_button.disabled = True
         
         # Mostrar progreso
-        self.progress_container.content = self.create_progress_indicator()
+        is_batch = len(self.selected_files) > 1
+        self.progress_container.content = self.create_progress_indicator(is_batch=is_batch)
         self.progress_container.visible = True
         self.results_container.visible = False
         self.page.update()
         
         # Ejecutar compresión en hilo separado
-        threading.Thread(target=self._compress_pdf_thread, daemon=True).start()
+        if is_batch:
+            threading.Thread(target=self._compress_batch_thread, daemon=True).start()
+        else:
+            threading.Thread(target=self._compress_single_thread, daemon=True).start()
     
-    def _compress_pdf_thread(self):
-        """Ejecutar compresión en hilo separado"""
+    def _compress_single_thread(self):
+        """Ejecutar compresión de un solo archivo en hilo separado"""
         try:
             quality_preset = self.quality_dropdown.value
             
             result = self.pdf_compressor.compress(
-                input_path=self.selected_file,
+                input_path=self.selected_files[0],
                 quality_preset=quality_preset
             )
             
@@ -574,13 +686,58 @@ class HYDRA21_PDFCompressor:
             self.page.run_thread(lambda: self.show_error(f"Error durante la compresión: {str(e)}"))
         finally:
             self.is_processing = False
-            self.compress_button.disabled = False
             self.page.run_thread(self.hide_progress)
+            self.page.run_thread(self.update_compress_button)
+    
+    def _compress_batch_thread(self):
+        """Ejecutar compresión por lotes en hilo separado"""
+        try:
+            quality_preset = self.quality_dropdown.value
+            
+            def progress_callback(current, total, filename):
+                """Callback para actualizar progreso"""
+                self.page.run_thread(lambda: self.update_batch_progress(current, total, filename))
+            
+            result = self.pdf_compressor.compress_batch(
+                input_paths=self.selected_files,
+                quality_preset=quality_preset,
+                progress_callback=progress_callback
+            )
+            
+            if result.success:
+                self.batch_stats = result.batch_stats
+                self.page.run_thread(self.show_batch_results)
+            else:
+                self.page.run_thread(lambda: self.show_error(result.error_message))
+                
+        except Exception as e:
+            self.page.run_thread(lambda: self.show_error(f"Error durante la compresión por lotes: {str(e)}"))
+        finally:
+            self.is_processing = False
+            self.page.run_thread(self.hide_progress)
+            self.page.run_thread(self.update_compress_button)
+    
+    def update_batch_progress(self, current, total, filename):
+        """Actualizar progreso de compresión por lotes"""
+        if self.progress_container.visible:
+            self.progress_container.content = self.create_progress_indicator(
+                is_batch=True, 
+                current_file=filename, 
+                progress=(current, total)
+            )
+            self.page.update()
     
     def show_compression_results(self):
         """Mostrar resultados de compresión"""
         if self.compression_stats:
             self.results_container.content = self.create_results_card(self.compression_stats)
+            self.results_container.visible = True
+            self.page.update()
+    
+    def show_batch_results(self):
+        """Mostrar resultados de compresión por lotes"""
+        if self.batch_stats:
+            self.results_container.content = self.create_batch_results_card(self.batch_stats)
             self.results_container.visible = True
             self.page.update()
     
@@ -612,10 +769,8 @@ class HYDRA21_PDFCompressor:
     def verify_ghostscript(self):
         """Verificar disponibilidad de Ghostscript"""
         if not self.gs_utils.is_available():
-            self.gs_status.content = self.create_gs_status_error()
-            self.gs_status.visible = True
-            self.compress_button.disabled = True
-            self.page.update()
+            # Si no tenemos create_gs_status_error, usamos show_error temporalmente
+            self.show_error("Ghostscript no está disponible. Por favor instálalo para usar la aplicación.")
     
     def open_output_file(self, file_path: Path):
         """Abrir archivo de salida"""
@@ -624,16 +779,113 @@ class HYDRA21_PDFCompressor:
         except Exception as e:
             self.show_error(f"Error al abrir el archivo: {str(e)}")
     
-    def open_output_folder(self, file_path: Path):
+    def open_output_folder(self, file_path):
         """Abrir carpeta de salida"""
         try:
-            os.startfile(str(file_path.parent))
+            if isinstance(file_path, Path):
+                folder_path = file_path if file_path.is_dir() else file_path.parent
+            else:
+                folder_path = Path(file_path)
+            os.startfile(str(folder_path))
         except Exception as e:
             self.show_error(f"Error al abrir la carpeta: {str(e)}")
     
-    def open_ghostscript_download(self):
-        """Abrir página de descarga de Ghostscript"""
-        webbrowser.open("https://www.ghostscript.com/download/gsdnld.html")
+    def update_compress_button(self):
+        """Actualizar el estado del botón de compresión según archivos seleccionados"""
+        files_count = len(self.selected_files)
+        self.compress_button.disabled = files_count == 0 or self.is_processing
+        
+        # Actualizar texto del botón
+        if files_count == 0:
+            button_text = "Comprimir PDFs"
+        elif files_count == 1:
+            button_text = "Comprimir PDF"
+        else:
+            button_text = f"Comprimir {files_count} PDFs"
+        
+        # Actualizar contenido del botón
+        theme = self.theme_manager.get_theme()
+        self.compress_button.content = ft.Row(
+            [
+                ft.Icon(ft.Icons.COMPRESS, color="white", size=18),
+                ft.Text(button_text, size=15, weight=ft.FontWeight.W_600, color="white")
+            ],
+            alignment=ft.MainAxisAlignment.CENTER,
+            spacing=8
+        )
+        
+        # Actualizar colores según el tema
+        self.compress_button.bgcolor = theme['button_primary_bg']
+        
+        self.page.update()
+    
+    def add_file_to_list(self, file_path: Path):
+        """Añadir archivo a la lista de archivos seleccionados"""
+        if file_path not in self.selected_files:
+            self.selected_files.append(file_path)
+            self.update_files_list()
+            self.update_compress_button()
+    
+    def remove_file_from_list(self, file_path: Path):
+        """Eliminar archivo de la lista"""
+        if file_path in self.selected_files:
+            self.selected_files.remove(file_path)
+            self.update_files_list()
+            self.update_compress_button()
+    
+    def clear_files_list(self):
+        """Limpiar la lista de archivos"""
+        self.selected_files.clear()
+        self.update_files_list()
+        self.update_compress_button()
+    
+    def update_files_list(self):
+        """Actualizar la UI de la lista de archivos en dos columnas"""
+        # Limpiar ambas columnas
+        self.files_list_container.controls.clear()
+        self.files_list_container_right.controls.clear()
+        
+        if self.selected_files:
+            theme = self.theme_manager.get_theme()
+                       
+            # Distribuir archivos en dos columnas de manera equilibrada
+            for i, file_path in enumerate(self.selected_files):
+                file_card = self.create_file_info_card(
+                    file_path, 
+                    on_remove=lambda _, fp=file_path: self.remove_file_from_list(fp)
+                )
+                file_container = ft.Container(
+                    content=file_card,
+                    margin=ft.margin.symmetric(horizontal=8, vertical=4)
+                )
+                
+                # Alternar entre columnas: pares en izquierda, impares en derecha
+                if i % 2 == 0:
+                    self.files_list_container.controls.append(file_container)
+                else:
+                    self.files_list_container_right.controls.append(file_container)
+        
+        self.page.update()
+    
+    def reset_ui(self):
+        """Resetear la interfaz para una nueva compresión"""
+        # Limpiar archivos seleccionados
+        self.clear_files_list()
+        
+        # Ocultar resultados y progreso
+        self.results_container.visible = False
+        self.progress_container.visible = False
+        
+        # Resetear estadísticas
+        self.compression_stats = None
+        self.batch_stats = None
+        self.is_processing = False
+        
+        # Actualizar botón de compresión
+        self.update_compress_button()
+        
+        # Actualizar página
+        self.page.update()
 
 def main(page: ft.Page):
     """Función principal de la aplicación"""

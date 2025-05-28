@@ -17,17 +17,49 @@ class CompressionStats:
     output_path: Path
 
 @dataclass
+class BatchCompressionStats:
+    """Estadísticas de compresión por lotes"""
+    total_files: int
+    successful_files: int
+    failed_files: int
+    total_original_size: int
+    total_compressed_size: int
+    total_reduction_percent: float
+    total_original_size_str: str
+    total_compressed_size_str: str
+    individual_stats: list[CompressionStats]
+    failed_files_list: list[str]
+
+@dataclass
 class CompressionResult:
     """Resultado de la operación de compresión"""
     success: bool
     error_message: Optional[str] = None
     stats: Optional[CompressionStats] = None
 
+@dataclass
+class BatchCompressionResult:
+    """Resultado de la operación de compresión por lotes"""
+    success: bool
+    error_message: Optional[str] = None
+    batch_stats: Optional[BatchCompressionStats] = None
+
 class PDFCompressor:
     """Clase principal para compresión de PDFs usando Ghostscript"""
     
-    def __init__(self):
-        self.gs_path = self._find_ghostscript()
+    def __init__(self, output_dir: Path = None):
+        """Inicializar compresor con directorio de salida opcional"""
+        # Configurar carpeta de salida por defecto en Documents/HYDRA21-PDFCompressor
+        if output_dir is None:
+            documents_dir = Path.home() / "Documents"
+            self.output_dir = documents_dir / "HYDRA21-PDFCompressor"
+        else:
+            self.output_dir = output_dir
+        
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Inicializar ruta de Ghostscript
+        self.gs_path = find_ghostscript_path()
     
     def compress(self, input_path: Path, quality_preset: str) -> CompressionResult:
         """Comprimir un archivo PDF"""
@@ -38,11 +70,8 @@ class PDFCompressor:
                     success=False,
                     error_message=f"El archivo no existe: {input_path}"
                 )
-            
-            # Crear archivo de salida
-            output_dir = Path("output")
-            output_dir.mkdir(exist_ok=True)
-            output_path = output_dir / f"{input_path.stem}_comprimido.pdf"
+              # Crear archivo de salida
+            output_path = self.output_dir / f"{input_path.stem}_comprimido.pdf"
             
             # Obtener tamaño original
             original_size = input_path.stat().st_size
@@ -98,6 +127,107 @@ class PDFCompressor:
             size_bytes /= 1024.0
             i += 1
         return f"{size_bytes:.2f} {size_names[i]}"
+
+    def compress_batch(self, input_paths: list[Path], quality_preset: str, 
+                      progress_callback=None) -> BatchCompressionResult:
+        """Comprimir múltiples archivos PDF en lote"""
+        try:
+            successful_stats = []
+            failed_files = []
+            total_original_size = 0
+            total_compressed_size = 0
+              # Usar directorio de salida configurado
+            # Ya está creado en __init__
+            
+            for i, input_path in enumerate(input_paths):
+                try:
+                    # Notificar progreso si hay callback
+                    if progress_callback:
+                        progress_callback(i + 1, len(input_paths), input_path.name)
+                    
+                    # Verificar archivo de entrada
+                    if not input_path.exists():
+                        failed_files.append(f"{input_path.name}: Archivo no existe")
+                        continue
+                      # Crear archivo de salida
+                    output_path = self.output_dir / f"{input_path.stem}_comprimido.pdf"
+                    
+                    # Si ya existe, añadir número
+                    counter = 1
+                    while output_path.exists():
+                        output_path = self.output_dir / f"{input_path.stem}_comprimido_{counter}.pdf"
+                        counter += 1
+                    
+                    # Obtener tamaño original
+                    original_size = input_path.stat().st_size
+                    total_original_size += original_size
+                    
+                    # Ejecutar compresión
+                    success, error_msg = compress_pdf(
+                        str(input_path),
+                        str(output_path),
+                        self.gs_path,
+                        self._get_quality_key_from_preset(quality_preset)
+                    )
+                    
+                    if success and output_path.exists():
+                        # Calcular estadísticas individuales
+                        compressed_size = output_path.stat().st_size
+                        total_compressed_size += compressed_size
+                        reduction_percent = ((original_size - compressed_size) / original_size) * 100
+                        
+                        stats = CompressionStats(
+                            original_size=original_size,
+                            compressed_size=compressed_size,
+                            reduction_percent=reduction_percent,
+                            original_size_str=self._format_size(original_size),
+                            compressed_size_str=self._format_size(compressed_size),
+                            output_path=output_path
+                        )
+                        successful_stats.append(stats)
+                    else:
+                        failed_files.append(f"{input_path.name}: {error_msg or 'Error desconocido'}")
+                        
+                except Exception as e:
+                    failed_files.append(f"{input_path.name}: {str(e)}")
+            
+            # Calcular estadísticas totales
+            total_reduction_percent = 0
+            if total_original_size > 0:
+                total_reduction_percent = ((total_original_size - total_compressed_size) / total_original_size) * 100
+            
+            batch_stats = BatchCompressionStats(
+                total_files=len(input_paths),
+                successful_files=len(successful_stats),
+                failed_files=len(failed_files),
+                total_original_size=total_original_size,
+                total_compressed_size=total_compressed_size,
+                total_reduction_percent=total_reduction_percent,
+                total_original_size_str=self._format_size(total_original_size),
+                total_compressed_size_str=self._format_size(total_compressed_size),
+                individual_stats=successful_stats,
+                failed_files_list=failed_files
+            )
+            
+            # Determinar si la operación fue exitosa
+            success = len(successful_stats) > 0
+            error_message = None
+            if not success:
+                error_message = "No se pudo comprimir ningún archivo"
+            elif failed_files:
+                error_message = f"Se procesaron {len(successful_stats)} archivos. {len(failed_files)} fallaron."
+            
+            return BatchCompressionResult(
+                success=success,
+                error_message=error_message,
+                batch_stats=batch_stats
+            )
+            
+        except Exception as e:
+            return BatchCompressionResult(
+                success=False,
+                error_message=f"Error inesperado en compresión por lotes: {str(e)}"
+            )
 
 def is_tool(name):
     """Revisa si un programa está en el PATH y es ejecutable."""
