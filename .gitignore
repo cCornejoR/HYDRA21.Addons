@@ -1,4 +1,4 @@
-# Archivos generados por Python
+# Python generated files
 __pycache__/
 *.py[cod]
 *$py.class
@@ -20,24 +20,24 @@ var/
 .installed.cfg
 *.egg
 
-# Archivos de entorno virtual
-venv/
+# Virtual environment files
+vvenv/
 ENV/
 env/
 .env
 .venv
 
-# Archivos de configuración local
+# Local configuration files
 *.ini
 config_local.json
 
-# Archivos de salida generados
+# Generated output files
 PDF-Extension/output/*
 !PDF-Extension/output/.gitkeep
 Clipboard-Extension/output/*
 !Clipboard-Extension/output/.gitkeep
 
-# Archivos temporales
+# Temporary files
 PDF-Extension/temp/*
 !PDF-Extension/temp/.gitkeep
 Clipboard-Extension/temp/*
@@ -45,11 +45,11 @@ Clipboard-Extension/temp/*
 PDF-Extension/storage/temp/*
 !PDF-Extension/storage/temp/.gitkeep
 
-# Caché
+# Cache
 PDF-Extension/__pycache__/
 Clipboard-Extension/__pycache__/
 
-# Archivos específicos a excluir
+# Specific files to exclude
 PDF-Extension/gs_config.json
 
 # Logs
@@ -57,12 +57,12 @@ PDF-Extension/gs_config.json
 logs/
 log/
 
-# Archivos del sistema operativo
+# OS generated files
 .DS_Store
 Thumbs.db
 desktop.ini
 
-# IDEs y editores
+# IDEs and editors
 .idea/
 .vscode/
 *.swp
@@ -71,3 +71,63 @@ desktop.ini
 .project
 .pydevproject
 .settings/
+
+# Node.js
+node_modules/
+
+# Next.js
+.next/
+
+# Flutter
+.flutter-plugins
+.flutter-plugins-dependencies
+.dart_tool/
+.packages
+build/
+
+# Rust
+target/
+
+# Visual Studio
+.vs/
+*.suo
+*.user
+*.ilk
+*.obj
+*.pdb
+*.tlb
+*.tli
+*.tlh
+*.tmp
+*.bak
+*.bsc
+*.sbr
+*.pch
+*.resharper
+*.dotSettings
+
+# Rider
+.idea/
+*.sln.DotSettings
+*.csproj.DotSettings
+
+# macOS
+.DS_Store
+.localized
+
+# Windows
+Thumbs.db
+desktop.ini
+
+# VS Code
+.vscode/
+
+# Other
+*.zip
+*.tar.gz
+*.rar
+*.7z
+*.log
+*.bak
+*.tmp
+*.DS_Store

@@ -1,4 +1,32 @@
 # settings.py - Configuraciones mejoradas para HYDRA21 PDF Compressor
+"""
+Módulo de configuraciones para HYDRA21 PDF Compressor.
+
+Este módulo define todas las configuraciones y constantes utilizadas
+en la aplicación, incluyendo presets de Ghostscript, configuraciones de UI,
+rutas de archivos, mensajes de la aplicación y funciones de utilidad.
+
+Clases:
+    Colors: Definiciones de colores para la UI.
+    Typography: Configuraciones de tipografía.
+    Spacing: Valores de espaciado para la UI.
+    Borders: Configuraciones de bordes y radios.
+    Shadows: Definiciones de sombras para elementos UI.
+    Animations: Configuraciones de animaciones.
+    App: Configuraciones generales de la aplicación.
+    Ghostscript: Configuraciones específicas de Ghostscript.
+    Logging: Configuraciones de registro.
+    Performance: Configuraciones de rendimiento.
+    Messages: Mensajes de la aplicación.
+
+Funciones:
+    ensure_directories: Crea directorios necesarios.
+    get_config_path: Obtiene ruta del archivo de configuración.
+    get_log_path: Obtiene ruta del archivo de log.
+    is_debug_mode: Verifica si está en modo debug.
+    init_settings: Inicializa configuraciones.
+"""
+
 import os
 from pathlib import Path
 
@@ -208,7 +236,11 @@ class Messages:
 
 # Funciones utilitarias
 def ensure_directories():
-    """Crear directorios necesarios si no existen"""
+    """Crear directorios necesarios si no existen.
+    
+    Crea los directorios de salida, temporales y de assets
+    si no existen en el sistema de archivos.
+    """
     directories = [OUTPUT_DIR, TEMP_DIR, ASSETS_DIR]
     for directory in directories:
         Path(directory).mkdir(parents=True, exist_ok=True)

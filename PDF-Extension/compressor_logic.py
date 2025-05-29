@@ -1,4 +1,26 @@
 # compressor_logic.py
+"""
+Módulo de lógica de compresión para HYDRA21 PDF Compressor.
+
+Este módulo implementa la lógica principal para comprimir archivos PDF
+utilizando Ghostscript. Proporciona clases para gestionar estadísticas
+de compresión y resultados, así como la funcionalidad principal de compresión
+tanto para archivos individuales como para lotes.
+
+Clases:
+    CompressionStats: Estadísticas de compresión para un archivo.
+    BatchCompressionStats: Estadísticas de compresión para múltiples archivos.
+    CompressionResult: Resultado de una operación de compresión individual.
+    BatchCompressionResult: Resultado de una operación de compresión por lotes.
+    PDFCompressor: Clase principal para compresión de PDFs.
+
+Funciones:
+    is_tool: Verifica si un programa está disponible en el PATH.
+    find_ghostscript_path: Busca la ruta de Ghostscript en el sistema.
+    verify_ghostscript_path: Verifica si una ruta de Ghostscript es válida.
+    compress_pdf: Comprime un archivo PDF usando Ghostscript.
+"""
+
 import os
 import subprocess
 from pathlib import Path
@@ -8,7 +30,19 @@ import settings # Importar GS_PRESETS
 
 @dataclass
 class CompressionStats:
-    """Estadísticas de compresión"""
+    """Estadísticas de compresión.
+    
+    Almacena información sobre el resultado de una operación de compresión,
+    incluyendo tamaños original y comprimido, porcentaje de reducción y rutas.
+    
+    Atributos:
+        original_size (int): Tamaño original en bytes.
+        compressed_size (int): Tamaño comprimido en bytes.
+        reduction_percent (float): Porcentaje de reducción de tamaño.
+        original_size_str (str): Tamaño original formateado.
+        compressed_size_str (str): Tamaño comprimido formateado.
+        output_path (Path): Ruta del archivo comprimido.
+    """
     original_size: int
     compressed_size: int
     reduction_percent: float

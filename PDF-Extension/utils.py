@@ -1,4 +1,23 @@
 # utils.py - Utilidades para HYDRA21 PDF Compressor
+"""
+Módulo de utilidades para HYDRA21 PDF Compressor.
+
+Este módulo proporciona clases y funciones de utilidad para diversas
+tareas como manejo de archivos, interacción con Ghostscript, gestión
+de configuración, cálculo de estadísticas y utilidades del sistema.
+
+Clases:
+    FileUtils: Utilidades para manejo de archivos.
+    GhostscriptUtils: Utilidades para Ghostscript.
+    ConfigManager: Gestor de configuración.
+    CompressionStats: Estadísticas de compresión.
+    SystemUtils: Utilidades del sistema.
+
+Funciones:
+    setup_logging: Configura el sistema de logging.
+    get_app_version: Obtiene la versión de la aplicación.
+"""
+
 import os
 import sys
 import json
@@ -15,11 +34,26 @@ from datetime import datetime
 logger = logging.getLogger(__name__)
 
 class FileUtils:
-    """Utilidades para manejo de archivos"""
+    """Utilidades para manejo de archivos.
+    
+    Proporciona métodos estáticos para operaciones comunes con archivos,
+    como formateo de tamaños, validación de PDFs, creación de backups
+    y limpieza de archivos temporales.
+    """
     
     @staticmethod
     def format_size(size_bytes: int) -> str:
-        """Formatear tamaño de archivo en formato legible"""
+        """Formatear tamaño de archivo en formato legible.
+        
+        Convierte un tamaño en bytes a una representación legible
+        con unidades apropiadas (B, KB, MB, GB, TB).
+        
+        Args:
+            size_bytes (int): Tamaño en bytes.
+            
+        Returns:
+            str: Tamaño formateado con unidades.
+        """
         if size_bytes == 0:
             return "0 B"
         
