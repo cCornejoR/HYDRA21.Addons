@@ -163,7 +163,7 @@ class PaperTranslatorApp:
     def show_snackbar(self, message: str, color: str = None):
         """Mostrar mensaje emergente"""
         snackbar = ft.SnackBar(
-            content=ft.Text(message, color=ft.colors.WHITE),
+            content=ft.Text(message, color=ft.Colors.WHITE),
             bgcolor=color or AppTheme.PRIMARY,
             duration=3000,
         )
