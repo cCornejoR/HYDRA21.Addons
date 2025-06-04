@@ -1,0 +1,31 @@
+# HYDRA21 PDF Compressor Pro - Dependencies
+# Professional PDF processing tool with Flet interface
+
+# Core Framework
+flet>=0.21.0
+
+# PDF Processing
+PyPDF2>=3.0.1
+pypdf>=3.17.0
+
+# System Integration
+psutil>=5.9.0
+pathlib2>=2.3.7
+
+# Configuration and Data
+pydantic>=2.5.0
+typing-extensions>=4.8.0
+
+# Optional: Enhanced PDF processing (if needed)
+# pdfplumber>=0.10.0
+# reportlab>=4.0.0
+
+# Development and Testing (optional)
+# pytest>=7.4.0
+# black>=23.0.0
+# flake8>=6.0.0
+
+# Note: Ghostscript must be installed separately on the system
+# Windows: Download from https://www.ghostscript.com/download/gsdnld.html
+# Linux: sudo apt-get install ghostscript
+# macOS: brew install ghostscript
