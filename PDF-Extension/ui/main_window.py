@@ -1,28 +1,30 @@
 """
-Main window for HYDRA21 PDF Compressor
-Comprehensive PDF processing application with modern UI
+HYDRA21 PDF Compressor Pro - Professional Main Window
+Complete PDF processing application with advanced features and modern UI
 """
 
 import flet as ft
 import threading
 import time
+import asyncio
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Callable
+from datetime import datetime
+
+# Core imports
 from config.settings import get_app_config, DirectoryConfig, GS_QUALITY_PRESETS
 from config.ghostscript_config import GhostscriptConfig
 from core.ghostscript_manager import GhostscriptManager
 from core.pdf_processor import PDFProcessor, BatchProgress
 from core.file_manager import FileManager
+
+# UI imports
 from ui.themes.theme_manager import ThemeManager
 from ui.themes.modern_components import create_modern_button, create_modern_card, create_modern_dropdown
-from ui.components.file_selector import FileSelector
-from ui.components.progress_display import ProgressDisplay, BatchProgressDisplay
-from ui.components.statistics_panel import StatisticsPanel
-from ui.components.tutorial_modal import TutorialModal
 
 class MainWindow(ft.Column):
     """Main application window"""
-    
+
     def __init__(self, page: ft.Page):
         self.page = page
 
@@ -64,45 +66,32 @@ class MainWindow(ft.Column):
         self._setup_ghostscript()
         self._setup_theme()
 
-        # Build UI
-        self._build_ui()
+        # Build UI components
+        self._initialize_ui_components()
 
-        # Initialize Column
+        # Initialize Column with proper controls
         super().__init__(
-            controls=[
-                self.app_bar,
-                self.main_content
-            ],
+            controls=[],
             spacing=0,
             expand=True
         )
 
-    def _build_ui(self):
-        """Build the main window UI"""
+        # Add controls after initialization
+        self.controls = [
+            self.app_bar,
+            self.main_content
+        ]
+
+    def _initialize_ui_components(self):
+        """Initialize all UI components"""
         # Create app bar
         self.app_bar = self._create_app_bar()
 
         # Create main content
         self.main_content = self._create_main_content()
-        
-    def build(self):
-        """Build the main window"""
-        # Create UI components
-        self._create_app_bar()
-        self._create_main_content()
+
+        # Create tutorial modal
         self._create_tutorial_modal()
-        
-        # Main layout
-        return ft.Column([
-            self.app_bar,
-            ft.Container(
-                content=ft.Stack([
-                    self.main_content,
-                    self.tutorial_modal
-                ]),
-                expand=True
-            )
-        ], spacing=0)
     
     def _setup_page(self):
         """Setup page configuration"""
@@ -175,80 +164,199 @@ class MainWindow(ft.Column):
         )
     
     def _create_main_content(self):
-        """Create main content area"""
+        """Create main content area with improved layout"""
         theme = self.theme_manager.get_theme()
-        
-        # Operation tabs
+
+        # Initialize components
         self._create_operation_tabs()
-        
-        # File selector
-        self.file_selector = FileSelector(
-            theme=theme,
-            file_manager=self.file_manager,
-            on_files_selected=self._on_files_selected,
-            allow_multiple=True,
-            max_files=self.config['files']['max_batch_files']
-        )
-        
-        # Quality selector (for compression)
-        quality_options = [
-            ft.dropdown.Option(key=key, text=preset['name'])
-            for key, preset in GS_QUALITY_PRESETS.items()
-        ]
-        
-        self.quality_dropdown = create_modern_dropdown(
-            label="Calidad de Compresión",
-            options=quality_options,
-            value=self.config['ghostscript']['default_quality'],
-            theme=theme,
-            width=300
-        )
-        
-        # Progress displays
-        self.progress_display = ProgressDisplay(theme=theme)
-        self.batch_progress_display = BatchProgressDisplay(theme=theme)
-        
-        # Statistics panel
-        self.statistics_panel = StatisticsPanel(
-            theme=theme,
-            file_manager=self.file_manager,
-            on_open_file=self._open_file,
-            on_open_folder=self._open_folder
-        )
-        
-        # Main content layout
+        self._create_file_selector(theme)
+        self._create_quality_dropdown(theme)
+        self._create_progress_displays(theme)
+        self._create_statistics_panel(theme)
+
+        # Main content with centered, symmetric layout
         self.main_content = ft.Container(
             content=ft.Column([
-                # Operation tabs
+                # Operation tabs - full width
                 self.operation_tabs,
-                
-                # Content area
+
+                # Main content area - centered with max width
                 ft.Container(
                     content=ft.Column([
-                        # File selection
-                        self.file_selector,
-                        
-                        # Operation-specific controls
-                        self._create_operation_controls(),
-                        
-                        # Action buttons
-                        self._create_action_buttons(),
-                        
-                        # Progress displays
-                        self.progress_display,
-                        self.batch_progress_display,
-                        
-                        # Statistics panel
-                        self.statistics_panel
-                        
-                    ], spacing=24, scroll=ft.ScrollMode.AUTO),
-                    padding=ft.padding.all(24),
-                    expand=True
+                        # File selection section
+                        self._create_file_section(),
+
+                        # Operation controls section
+                        self._create_controls_section(),
+
+                        # Action buttons section
+                        self._create_buttons_section(),
+
+                        # Progress section
+                        self._create_progress_section(),
+
+                        # Results section
+                        self._create_results_section()
+
+                    ],
+                    spacing=32,
+                    scroll=ft.ScrollMode.AUTO,
+                    horizontal_alignment=ft.CrossAxisAlignment.CENTER
+                    ),
+                    padding=ft.padding.symmetric(horizontal=32, vertical=24),
+                    expand=True,
+                    alignment=ft.alignment.top_center
                 )
             ], spacing=0),
-            expand=True
+            expand=True,
+            bgcolor=theme['background']
         )
-    
+
+    def _create_file_selector(self, theme):
+        """Create file selector component"""
+        try:
+            self.file_selector = FileSelector(
+                theme=theme,
+                file_manager=self.file_manager,
+                on_files_selected=self._on_files_selected,
+                allow_multiple=True,
+                max_files=self.config['files']['max_batch_files']
+            )
+        except Exception as e:
+            print(f"⚠️ Warning: Could not initialize file selector: {e}")
+            # Use fallback component
+            from ui.components.fallback_components import FallbackFileSelector
+            self.file_selector = FallbackFileSelector(theme, self._on_files_selected)
+
+    def _create_quality_dropdown(self, theme):
+        """Create quality dropdown component"""
+        try:
+            quality_options = [
+                ft.dropdown.Option(key=key, text=preset['name'])
+                for key, preset in GS_QUALITY_PRESETS.items()
+            ]
+
+            self.quality_dropdown = create_modern_dropdown(
+                label="Calidad de Compresión",
+                options=quality_options,
+                value=self.config['ghostscript']['default_quality'],
+                theme=theme,
+                width=300
+            )
+        except Exception as e:
+            print(f"⚠️ Warning: Could not initialize quality dropdown: {e}")
+            # Use fallback dropdown
+            from ui.components.fallback_components import create_fallback_dropdown
+            quality_options = [
+                ft.dropdown.Option(key=key, text=preset['name'])
+                for key, preset in GS_QUALITY_PRESETS.items()
+            ]
+            self.quality_dropdown = create_fallback_dropdown(
+                "Calidad de Compresión", quality_options,
+                self.config['ghostscript']['default_quality'], theme, 300
+            )
+
+    def _create_progress_displays(self, theme):
+        """Create progress display components"""
+        try:
+            self.progress_display = ProgressDisplay(theme=theme)
+            self.batch_progress_display = BatchProgressDisplay(theme=theme)
+        except Exception as e:
+            print(f"⚠️ Warning: Could not initialize progress displays: {e}")
+            # Use fallback components
+            from ui.components.fallback_components import (
+                FallbackProgressDisplay, FallbackBatchProgressDisplay
+            )
+            self.progress_display = FallbackProgressDisplay(theme)
+            self.batch_progress_display = FallbackBatchProgressDisplay(theme)
+
+    def _create_statistics_panel(self, theme):
+        """Create statistics panel component"""
+        try:
+            self.statistics_panel = StatisticsPanel(
+                theme=theme,
+                file_manager=self.file_manager,
+                on_open_file=self._open_file,
+                on_open_folder=self._open_folder
+            )
+        except Exception as e:
+            print(f"⚠️ Warning: Could not initialize statistics panel: {e}")
+            # Use fallback component
+            from ui.components.fallback_components import FallbackStatisticsPanel
+            self.statistics_panel = FallbackStatisticsPanel(
+                theme, self.file_manager, self._open_file, self._open_folder
+            )
+
+    def _create_file_section(self):
+        """Create file selection section"""
+        theme = self.theme_manager.get_theme()
+
+        if not self.file_selector:
+            return ft.Container(
+                content=ft.Text("Error: File selector not available", color=theme['error']),
+                padding=20
+            )
+
+        return create_modern_card([
+            ft.Row([
+                ft.Icon(ft.Icons.FOLDER_OPEN, color=theme['primary'], size=24),
+                ft.Text(
+                    "Selección de Archivos",
+                    size=18,
+                    weight=ft.FontWeight.W_600,
+                    color=theme['on_surface']
+                )
+            ], spacing=12),
+            ft.Container(height=16),
+            self.file_selector
+        ], theme, width=800)
+
+    def _create_controls_section(self):
+        """Create operation controls section"""
+        controls = self._create_operation_controls()
+        if controls:
+            return ft.Container(
+                content=controls,
+                width=800,
+                alignment=ft.alignment.center
+            )
+        return ft.Container()
+
+    def _create_buttons_section(self):
+        """Create action buttons section"""
+        buttons = self._create_action_buttons()
+        return ft.Container(
+            content=buttons,
+            width=800,
+            alignment=ft.alignment.center,
+            padding=ft.padding.symmetric(vertical=16)
+        )
+
+    def _create_progress_section(self):
+        """Create progress displays section"""
+        if not self.progress_display or not self.batch_progress_display:
+            return ft.Container()
+
+        return ft.Container(
+            content=ft.Column([
+                self.progress_display,
+                self.batch_progress_display
+            ], spacing=16),
+            width=800,
+            alignment=ft.alignment.center
+        )
+
+    def _create_results_section(self):
+        """Create results/statistics section"""
+        if not self.statistics_panel:
+            return ft.Container()
+
+        return ft.Container(
+            content=self.statistics_panel,
+            width=800,
+            alignment=ft.alignment.center
+        )
+
     def _create_operation_tabs(self):
         """Create operation selection tabs"""
         theme = self.theme_manager.get_theme()
@@ -435,17 +543,28 @@ class MainWindow(ft.Column):
     
     def _create_tutorial_modal(self):
         """Create tutorial modal"""
-        self.tutorial_modal = TutorialModal(
-            theme=self.theme_manager.get_theme(),
-            gs_config=self.gs_config,
-            on_setup_complete=self._on_tutorial_complete
-        )
-        
-        # Tutorial disabled for now - can be accessed manually from menu
-        # gs_info = self.gs_config.get_ghostscript_info()
-        # if not gs_info['verified']:
-        #     print("💡 Tip: Usa el menú 'Ayuda > Tutorial' para configurar Ghostscript")
-        print("💡 Tip: Usa el menú 'Ayuda > Tutorial' para configurar Ghostscript si es necesario")
+        try:
+            self.tutorial_modal = TutorialModal(
+                theme=self.theme_manager.get_theme(),
+                gs_config=self.gs_config,
+                on_setup_complete=self._on_tutorial_complete
+            )
+        except Exception as e:
+            print(f"⚠️ Warning: Could not initialize tutorial modal: {e}")
+            # Use fallback component
+            from ui.components.fallback_components import FallbackTutorialModal
+            self.tutorial_modal = FallbackTutorialModal(
+                self.theme_manager.get_theme(), self.gs_config, self._on_tutorial_complete
+            )
+
+        # Show setup tip only once
+        try:
+            gs_info = self.gs_config.get_ghostscript_info()
+            if not gs_info['verified']:
+                print("💡 Tip: Usa el menú 'Ayuda > Tutorial' para configurar Ghostscript")
+        except Exception as e:
+            print(f"⚠️ Warning: Could not check Ghostscript status: {e}")
+            print("💡 Tip: Verifica la configuración de Ghostscript manualmente")
     
     def _get_quality_description(self) -> str:
         """Get description for selected quality"""

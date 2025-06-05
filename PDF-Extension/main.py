@@ -1,33 +1,41 @@
 """
-HYDRA21 PDF Compressor Pro - Main Application Entry Point
-Professional PDF processing tool with modern Flet interface
+HYDRA21 PDF Compressor Pro - Professional PDF Processing Application
+Complete PDF processing suite with modern Flet interface
 
 Features:
-- PDF Compression with quality presets
-- PDF Merging and Splitting
-- Batch processing with progress tracking
-- Modern blue-themed UI without shadows
-- Comprehensive statistics display
+- Advanced PDF Compression with Ghostscript integration
+- PDF Merging and Splitting capabilities
+- Batch processing with comprehensive progress tracking
+- Dynamic theme switching (light/dark mode)
+- Professional statistics and results panel
+- Drag-and-drop file support
+- Real-time progress indicators and status updates
 - Direct file/folder access after operations
 
 Author: HYDRA21
-Version: 3.0.0
+Version: 3.0.0 - Professional Edition
 """
 
 import flet as ft
 import sys
 import os
-import threading
 from pathlib import Path
 
 # Add current directory to Python path for imports
 current_dir = Path(__file__).parent
 sys.path.insert(0, str(current_dir))
 
-from ui.main_window import MainWindow
+try:
+    from ui.main_window_professional import MainWindow
+    PROFESSIONAL_VERSION = True
+except ImportError:
+    print("⚠️ Professional version not available, using standard version")
+    from ui.main_window import MainWindow
+    PROFESSIONAL_VERSION = False
 from config.settings import (
-    APP_NAME, APP_VERSION, APP_DESCRIPTION,
-    WINDOW_WIDTH, WINDOW_HEIGHT, WINDOW_MIN_WIDTH, WINDOW_MIN_HEIGHT
+    APP_NAME, APP_VERSION,
+    WINDOW_WIDTH, WINDOW_HEIGHT, WINDOW_MIN_WIDTH, WINDOW_MIN_HEIGHT,
+    DirectoryConfig
 )
 
 def main(page: ft.Page):
@@ -111,19 +119,27 @@ def main(page: ft.Page):
         def init_full_app():
             try:
                 page.clean()
+                # Create professional main window
                 main_window = MainWindow(page)
+                page.main_window = main_window  # Store reference for cleanup
                 page.add(main_window)
                 page.update()
+                print("✅ Aplicación profesional inicializada correctamente")
             except Exception as e:
+                print(f"❌ Error inicializando aplicación: {e}")
                 page.clean()
                 page.add(
                     ft.Column([
+                        ft.Icon(ft.Icons.ERROR_OUTLINE, color="#dc2626", size=48),
+                        ft.Text("Error de Inicialización", size=20, weight=ft.FontWeight.BOLD, color="#dc2626"),
                         ft.Text(f"Error: {str(e)}", color="#dc2626"),
+                        ft.Container(height=20),
                         ft.ElevatedButton(
                             text="Reintentar",
-                            on_click=lambda _: init_full_app()
+                            on_click=lambda _: init_full_app(),
+                            style=ft.ButtonStyle(bgcolor="#2563eb", color="white")
                         )
-                    ])
+                    ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=12)
                 )
                 page.update()
 

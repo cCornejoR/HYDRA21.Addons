@@ -34,18 +34,27 @@ echo ✅ Python detectado
 echo 🚀 Iniciando HYDRA21 PDF Compressor...
 echo.
 
-REM Run the application
-python main.py
+REM Run the professional application
+echo 🚀 Iniciando aplicación profesional...
+python main_professional.py
 
-REM Check if there was an error
+REM If that fails, try the main version
 if errorlevel 1 (
     echo.
-    echo ❌ La aplicacion termino con errores
+    echo ⚠️ Versión profesional falló, intentando versión principal...
+    python main.py
+)
+
+REM Final error handling
+if errorlevel 1 (
+    echo.
+    echo ❌ Todas las versiones fallaron
     echo.
     echo Posibles soluciones:
     echo 1. Ejecuta: python install.py
     echo 2. Instala dependencias: pip install -r requirements.txt
     echo 3. Verifica que Ghostscript este instalado
+    echo 4. Contacta soporte técnico
     echo.
     pause
 ) else (
