@@ -28,8 +28,7 @@ sys.path.insert(0, str(current_dir))
 # Import the complete professional main window
 from ui.main_window_complete import MainWindow
 from config.settings import (
-    APP_NAME, APP_VERSION, 
-    WINDOW_WIDTH, WINDOW_HEIGHT, WINDOW_MIN_WIDTH, WINDOW_MIN_HEIGHT,
+    APP_NAME, APP_VERSION,
     DirectoryConfig
 )
 
@@ -39,15 +38,17 @@ def main(page: ft.Page):
     # Setup output directory
     setup_output_directory()
     
-    # Configure page properties
+    # Configure page properties with fixed size
     page.title = f"{APP_NAME} v{APP_VERSION} - Professional Edition"
-    page.window.width = WINDOW_WIDTH
-    page.window.height = WINDOW_HEIGHT
-    page.window.min_width = WINDOW_MIN_WIDTH
-    page.window.min_height = WINDOW_MIN_HEIGHT
-    page.window.resizable = True
-    page.window.maximizable = True
+    page.window.width = 850
+    page.window.height = 900
+    page.window.min_width = 850
+    page.window.min_height = 900
+    page.window.resizable = False
+    page.window.maximizable = False
+    page.window_icon = "assets/logo.ico"  
     page.window.center()
+    page.scroll = ft.ScrollMode.AUTO
     
     # Set window icon (if available)
     try:

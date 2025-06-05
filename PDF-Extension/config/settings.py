@@ -10,7 +10,7 @@ from dataclasses import dataclass
 
 # Application Information
 APP_NAME = "HYDRA21 PDF Compressor Pro"
-APP_VERSION = "3.0.0"
+APP_VERSION = "0.5.0"
 APP_AUTHOR = "HYDRA21"
 APP_DESCRIPTION = "Professional PDF processing tool with modern interface"
 
