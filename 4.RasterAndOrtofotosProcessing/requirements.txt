@@ -1,0 +1,23 @@
+# HYDRA21 Orthophoto Processor Pro - Dependencies
+# Professional orthophoto processing application
+
+# Core GUI Framework
+flet>=0.21.0
+
+# Geospatial Processing
+rasterio>=1.3.0
+GDAL>=3.4.0
+
+# Numerical Computing
+numpy>=1.21.0
+
+# Image Processing (optional, for additional formats)
+Pillow>=9.0.0
+
+# Utilities
+pathlib2>=2.3.0; python_version < "3.4"
+
+# Development Dependencies (optional)
+# pytest>=7.0.0
+# black>=22.0.0
+# flake8>=4.0.0

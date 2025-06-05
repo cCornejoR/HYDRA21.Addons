@@ -1,0 +1,12 @@
+{
+  "output_directory": "D:\\",
+  "last_export_profile": "gis_analysis",
+  "last_compression": "lossless",
+  "last_quality": 85,
+  "preserve_crs": true,
+  "create_overviews": true,
+  "resampling_method": "bilinear",
+  "theme_mode": "light",
+  "window_width": 1000,
+  "window_height": 800
+}
