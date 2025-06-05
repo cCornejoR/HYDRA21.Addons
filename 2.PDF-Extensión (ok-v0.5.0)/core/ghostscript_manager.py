@@ -322,3 +322,101 @@ class GhostscriptManager:
                 message=message,
                 processing_time=processing_time
             )
+
+    def split_pdf_pages(
+        self,
+        input_path: Path,
+        output_dir: Path,
+        page_numbers: List[int],
+        progress_callback: Optional[Callable[[str], None]] = None
+    ) -> OperationResult:
+        """
+        Split PDF file extracting specific pages
+
+        Args:
+            input_path: Path to input PDF
+            output_dir: Directory for output files
+            page_numbers: List of specific page numbers to extract (1-based)
+            progress_callback: Optional progress callback
+
+        Returns:
+            OperationResult with operation details
+        """
+        import time
+        start_time = time.time()
+
+        if progress_callback:
+            progress_callback("Iniciando división de páginas seleccionadas...")
+
+        # Validate input
+        if not input_path.exists():
+            return OperationResult(
+                success=False,
+                message=f"Archivo de entrada no encontrado: {input_path}"
+            )
+
+        if not page_numbers:
+            return OperationResult(
+                success=False,
+                message="No se especificaron páginas para extraer"
+            )
+
+        # Get original file size
+        original_size = input_path.stat().st_size
+
+        # Ensure output directory exists
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        extracted_files = []
+        total_pages = len(page_numbers)
+
+        for i, page_num in enumerate(page_numbers):
+            if progress_callback:
+                progress_callback(f"Extrayendo página {page_num} ({i+1}/{total_pages})...")
+
+            # Build output filename for this specific page
+            output_file = output_dir / f"{input_path.stem}_page_{page_num:03d}.pdf"
+
+            # Build Ghostscript command for extracting single page
+            command = [
+                self.gs_path,
+                "-sDEVICE=pdfwrite",
+                "-dCompatibilityLevel=1.4",
+                "-dNOPAUSE",
+                "-dQUIET",
+                "-dBATCH",
+                f"-dFirstPage={page_num}",
+                f"-dLastPage={page_num}",
+                f"-sOutputFile={str(output_file)}",
+                str(input_path)
+            ]
+
+            # Execute extraction for this page
+            success, message = self._run_ghostscript_command(command)
+
+            if success and output_file.exists():
+                extracted_files.append(output_file)
+            else:
+                # If one page fails, continue with others but note the failure
+                print(f"Error extrayendo página {page_num}: {message}")
+
+        processing_time = time.time() - start_time
+
+        if extracted_files:
+            # Calculate total size of extracted files
+            final_size = sum(f.stat().st_size for f in extracted_files)
+
+            return OperationResult(
+                success=True,
+                message=f"Páginas extraídas exitosamente ({len(extracted_files)} de {total_pages} páginas)",
+                output_path=output_dir,
+                original_size=original_size,
+                final_size=final_size,
+                processing_time=processing_time
+            )
+        else:
+            return OperationResult(
+                success=False,
+                message="No se pudo extraer ninguna página",
+                processing_time=processing_time
+            )

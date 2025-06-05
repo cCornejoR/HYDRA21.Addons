@@ -30,14 +30,14 @@ VSVersionInfo(
       StringTable(
         u'040904B0',
         [StringStruct(u'CompanyName', u'HYDRA21'),
-        StringStruct(u'FileDescription', u'HYDRA21 PDF Compressor Pro - Compresor Profesional de PDFs'),
+        StringStruct(u'FileDescription', u'HYDRA21 PDF Compressor Pro - Professional PDF Processing Suite'),
         StringStruct(u'FileVersion', u'0.5.0'),
         StringStruct(u'InternalName', u'HYDRA21-PDF-Compressor-Pro'),
         StringStruct(u'LegalCopyright', u'© 2024 HYDRA21. Todos los derechos reservados.'),
         StringStruct(u'OriginalFilename', u'HYDRA21-PDF-Compressor-Pro.exe'),
         StringStruct(u'ProductName', u'HYDRA21 PDF Compressor Pro'),
         StringStruct(u'ProductVersion', u'0.5.0')])
-      ]), 
+      ]),
     VarFileInfo([VarStruct(u'Translation', [1033, 1200])])
   ]
 )

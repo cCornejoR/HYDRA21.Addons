@@ -264,6 +264,44 @@ class PDFProcessor:
             end_page=end_page,
             progress_callback=progress_callback
         )
+
+    def split_pdf_pages(
+        self,
+        input_path: Path,
+        page_numbers: List[int],
+        output_folder_name: Optional[str] = None,
+        progress_callback: Optional[Callable[[str], None]] = None
+    ) -> OperationResult:
+        """
+        Split PDF extracting specific pages
+
+        Args:
+            input_path: Path to PDF file to split
+            page_numbers: List of specific page numbers to extract (1-based)
+            output_folder_name: Custom folder name for split files
+            progress_callback: Progress callback function
+
+        Returns:
+            OperationResult with split details
+        """
+        if output_folder_name:
+            output_dir = self.output_dir / output_folder_name
+        else:
+            output_dir = self.output_dir / f"{input_path.stem}_selected_pages"
+
+        # Ensure unique directory name
+        counter = 1
+        original_output_dir = output_dir
+        while output_dir.exists():
+            output_dir = Path(str(original_output_dir) + f"_{counter}")
+            counter += 1
+
+        return self.gs_manager.split_pdf_pages(
+            input_path=input_path,
+            output_dir=output_dir,
+            page_numbers=page_numbers,
+            progress_callback=progress_callback
+        )
     
     def get_processing_summary(self, stats: ProcessingStats) -> Dict[str, Any]:
         """

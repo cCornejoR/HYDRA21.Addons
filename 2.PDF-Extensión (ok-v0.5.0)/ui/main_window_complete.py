@@ -1,6 +1,6 @@
 """
 HYDRA21 PDF Compressor Pro - Complete Professional Main Window
-Full PDF compression functionality with real Ghostscript integration
+Full PDF processing suite with tabbed interface and modern design
 """
 
 import flet as ft
@@ -16,15 +16,20 @@ from datetime import datetime
 from config.settings import get_app_config, DirectoryConfig, GS_QUALITY_PRESETS
 from config.ghostscript_config import GhostscriptConfig
 
+# UI Components
+from ui.components.tabbed_interface import TabbedInterface
+from ui.components.pdf_splitter import PDFSplitter
+from ui.components.pdf_merger import PDFMerger
+
 class MainWindow(ft.Column):
-    """Complete Professional PDF Compressor Main Window"""
-    
+    """Complete Professional PDF Compressor Main Window with Tabbed Interface"""
+
     def __init__(self, page: ft.Page):
         self.page = page
 
         # Set fixed window size with scroll
-        self.page.window.width = 850
-        self.page.window.height = 900
+        self.page.window.width = 900
+        self.page.window.height = 950
         self.page.window.resizable = False
         self.page.scroll = ft.ScrollMode.AUTO
 
@@ -59,6 +64,9 @@ class MainWindow(ft.Column):
             'downsample_images': True
         }
 
+        # Theme configuration
+        self.theme = self._get_theme_config()
+
         # UI components
         self.file_picker = None
         self.file_list_container = None
@@ -67,6 +75,9 @@ class MainWindow(ft.Column):
         self.results_panel = None
         self.process_button = None
         self.clear_button = None
+        self.tabbed_interface = None
+        self.pdf_splitter = None
+        self.pdf_merger = None
 
         # Setup UI
         self._setup_ui()
@@ -74,11 +85,48 @@ class MainWindow(ft.Column):
 
         # Initialize Column
         super().__init__(
-            controls=self._build_layout(),
+            controls=[],  # Start with empty controls
             spacing=0,
             expand=True,
             scroll=ft.ScrollMode.AUTO
         )
+
+        # Build layout after initialization
+        try:
+            layout_controls = self._build_layout()
+            self.controls.extend(layout_controls)
+        except Exception as e:
+            print(f"Error building layout: {e}")
+            # Fallback to simple layout
+            self.controls.append(
+                ft.Container(
+                    content=ft.Text("Error loading interface", color="#dc2626"),
+                    padding=20
+                )
+            )
+
+    def _get_theme_config(self) -> Dict[str, str]:
+        """Get theme configuration"""
+        if self.is_dark_mode:
+            return {
+                'surface': '#1e293b',
+                'surface_variant': '#334155',
+                'on_surface': '#f1f5f9',
+                'on_surface_variant': '#cbd5e1',
+                'outline': '#475569',
+                'primary': '#3b82f6',
+                'on_primary': '#ffffff'
+            }
+        else:
+            return {
+                'surface': '#ffffff',
+                'surface_variant': '#f8fafc',
+                'on_surface': '#1e293b',
+                'on_surface_variant': '#64748b',
+                'outline': '#e2e8f0',
+                'primary': '#2563eb',
+                'on_primary': '#ffffff'
+            }
     
     def _detect_ghostscript(self):
         """Detect Ghostscript installation"""
@@ -125,7 +173,24 @@ class MainWindow(ft.Column):
         # File picker
         self.file_picker = ft.FilePicker(on_result=self._on_files_selected)
         self.page.overlay.append(self.file_picker)
-        
+
+        # Create tabbed interface
+        self.tabbed_interface = TabbedInterface(self.page, self.theme)
+
+        # Create PDF splitter component
+        self.pdf_splitter = PDFSplitter(
+            self.page,
+            self.theme,
+            on_split_complete=self._on_split_complete
+        )
+
+        # Create PDF merger component
+        self.pdf_merger = PDFMerger(
+            self.page,
+            self.theme,
+            on_merge_complete=self._on_merge_complete
+        )
+
         # Quality dropdown
         self.quality_dropdown = ft.Dropdown(
             label="Calidad de Compresión",
@@ -136,8 +201,8 @@ class MainWindow(ft.Column):
                 ft.dropdown.Option("low", "Baja Calidad - Máxima compresión (36 DPI)"),
             ],
             width=500,
-            bgcolor="#ffffff",
-            border_color="#e2e8f0",
+            bgcolor=self.theme['surface'],
+            border_color=self.theme['outline'],
             on_change=self._on_quality_changed
         )
         
@@ -262,16 +327,19 @@ class MainWindow(ft.Column):
         )
     
     def _build_layout(self):
-        """Build the main layout with theme support"""
+        """Build the main layout with tabbed interface"""
+        # Setup tab contents
+        self._setup_tab_contents()
+
         return [
             # Header
             ft.Container(
                 content=ft.Row([
                     ft.Row([
-                        # Usar imagen personalizada en lugar del icono de Flet
+                        # Logo
                         ft.Container(
                             content=ft.Image(
-                                src="assets/logo.png",
+                                src="logo.png",
                                 width=32,
                                 height=32,
                                 fit=ft.ImageFit.CONTAIN
@@ -288,7 +356,7 @@ class MainWindow(ft.Column):
                                 color="#2563eb"
                             ),
                             ft.Text(
-                                "Compresión Profesional de PDFs con Ghostscript",
+                                "Suite Profesional de Procesamiento de PDFs",
                                 size=14,
                                 color=self._get_secondary_text_color()
                             )
@@ -350,30 +418,79 @@ class MainWindow(ft.Column):
                 border=ft.border.only(bottom=ft.BorderSide(2, self._get_border_color()))
             ),
 
-            # Main content
+            # Tabbed interface
             ft.Container(
-                content=ft.Column([
-                    # File selection section
-                    self._create_file_section(),
-
-                    # Settings section
-                    self._create_settings_section(),
-
-                    # Action buttons
-                    self._create_action_section(),
-
-                    # Progress section
-                    self.progress_container,
-
-                    # Results section
-                    self.results_panel
-
-                ], spacing=32, scroll=ft.ScrollMode.AUTO),
-                padding=ft.padding.symmetric(horizontal=40, vertical=32),
+                content=self.tabbed_interface,
+                padding=ft.padding.symmetric(horizontal=24, vertical=16),
                 expand=True,
                 bgcolor=self._get_bg_color()
-            )
+            ),
+
+            # Footer
+            self._create_footer()
         ]
+
+    def _setup_tab_contents(self):
+        """Setup content for each tab"""
+        # Only setup if tabbed_interface exists
+        if not self.tabbed_interface:
+            return
+
+        # Compression tab content
+        compress_content = ft.Column([
+            # File selection section
+            self._create_file_section(),
+
+            # Settings section
+            self._create_settings_section(),
+
+            # Action buttons
+            self._create_action_section(),
+
+            # Progress section
+            self.progress_container,
+
+            # Results section
+            self.results_panel
+
+        ], spacing=24, scroll=ft.ScrollMode.AUTO)
+
+        # Set tab contents
+        self.tabbed_interface.set_tab_content('compress', compress_content)
+
+        # Only set PDF splitter if it exists
+        if self.pdf_splitter:
+            self.tabbed_interface.set_tab_content('split', self.pdf_splitter)
+
+        # Set PDF merger if it exists
+        if self.pdf_merger:
+            self.tabbed_interface.set_tab_content('merge', self.pdf_merger)
+
+    def _on_split_complete(self, result):
+        """Handle PDF split completion"""
+        # Add to operation history
+        self.operation_history.append({
+            'operation': 'split',
+            'timestamp': time.time(),
+            'success': result.success,
+            'message': result.message,
+            'output_path': str(result.output_path) if result.output_path else None
+        })
+
+        print(f"✅ División completada: {result.message}")
+
+    def _on_merge_complete(self, result):
+        """Handle PDF merge completion"""
+        # Add to operation history
+        self.operation_history.append({
+            'operation': 'merge',
+            'timestamp': time.time(),
+            'success': result.success,
+            'message': result.message,
+            'output_path': str(result.output_path) if result.output_path else None
+        })
+
+        print(f"✅ Fusión completada: {result.message}")
 
     def _get_header_bg_color(self):
         """Get header background color based on theme"""
@@ -531,6 +648,57 @@ class MainWindow(ft.Column):
     def _get_border_color(self):
         """Get border color based on theme"""
         return "#374151" if self.is_dark_mode else "#e2e8f0"
+
+    def _create_footer(self):
+        """Create footer with version and theme info"""
+        return ft.Container(
+            content=ft.Row([
+                # Left side - Version info
+                ft.Row([
+                    ft.Text(
+                        "HYDRA²¹",
+                        size=12,
+                        weight=ft.FontWeight.BOLD,
+                        color="#2563eb"
+                    ),
+                    ft.Text(
+                        "PDF Compressor Pro v0.5.0",
+                        size=11,
+                        color=self._get_secondary_text_color()
+                    )
+                ], spacing=8),
+
+                # Right side - Theme and status
+                ft.Row([
+                    ft.Text(
+                        f"Tema: {'Oscuro' if self.is_dark_mode else 'Claro'}",
+                        size=11,
+                        color=self._get_secondary_text_color()
+                    ),
+                    ft.Container(
+                        content=ft.Row([
+                            ft.Icon(
+                                ft.Icons.CHECK_CIRCLE if self.gs_path else ft.Icons.WARNING,
+                                color="#059669" if self.gs_path else "#f59e0b",
+                                size=12
+                            ),
+                            ft.Text(
+                                "Ghostscript OK" if self.gs_path else "Ghostscript Missing",
+                                size=10,
+                                color="#059669" if self.gs_path else "#f59e0b"
+                            )
+                        ], spacing=4),
+                        padding=ft.padding.symmetric(horizontal=8, vertical=2),
+                        bgcolor="#ecfdf5" if self.gs_path else "#fffbeb",
+                        border_radius=8,
+                        border=ft.border.all(1, "#a7f3d0" if self.gs_path else "#fed7aa")
+                    )
+                ], spacing=12)
+            ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+            padding=ft.padding.symmetric(horizontal=24, vertical=8),
+            bgcolor=self._get_header_bg_color(),
+            border=ft.border.only(top=ft.BorderSide(1, self._get_border_color()))
+        )
 
     # Event handlers
     def _select_files(self, e):
@@ -1002,9 +1170,24 @@ class MainWindow(ft.Column):
         """Toggle between light and dark theme"""
         self.is_dark_mode = not self.is_dark_mode
 
+        # Update theme configuration
+        self.theme = self._get_theme_config()
+
         # Update page theme
         self.page.theme_mode = ft.ThemeMode.DARK if self.is_dark_mode else ft.ThemeMode.LIGHT
         self.page.update()
+
+        # Update tabbed interface theme
+        if self.tabbed_interface:
+            self.tabbed_interface.set_theme(self.theme)
+
+        # Update PDF splitter theme
+        if self.pdf_splitter:
+            self.pdf_splitter.theme = self.theme
+
+        # Update PDF merger theme
+        if self.pdf_merger:
+            self.pdf_merger.theme = self.theme
 
         # Rebuild the interface with new theme
         self.controls.clear()
