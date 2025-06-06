@@ -89,21 +89,24 @@ class ThemeManager:
     def apply_to_page(self, page: ft.Page):
         """Apply current theme to Flet page"""
         theme = self.get_theme()
-        
+
         # Set theme mode
         page.theme_mode = ft.ThemeMode.DARK if self._is_dark else ft.ThemeMode.LIGHT
-        
+
         # Set background color
         page.bgcolor = theme['background']
-        
+
         # Configure custom theme with blue color scheme
         page.theme = ft.Theme(
             color_scheme_seed=theme['primary'],
             use_material3=True
         )
-        
-        # Update page
-        page.update()
+
+        # Force update all visual elements
+        try:
+            page.update()
+        except Exception as e:
+            print(f"Warning: Theme update error: {e}")
     
     def get_color(self, color_key: str) -> str:
         """Get specific color from current theme"""

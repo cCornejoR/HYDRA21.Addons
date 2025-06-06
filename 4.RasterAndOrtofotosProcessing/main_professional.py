@@ -196,19 +196,37 @@ class MainWindow(ft.Column):
     def _on_theme_changed(self, new_theme: Dict[str, str]):
         """Handle theme change"""
         self.theme = new_theme
-        
+
         # Update page theme
         self.theme_manager.apply_to_page(self.page)
-        
+
         # Update component themes
         if self.tabbed_interface:
             self.tabbed_interface.set_theme(new_theme)
-        
-        # Update header and status bar
-        self._update_header_theme()
-        self._update_status_bar_theme()
-        
+
+        # Rebuild the entire interface with new theme
+        self._rebuild_interface()
+
+        # Force update
         self.page.update()
+
+        print(f"🎨 Tema cambiado a: {'Oscuro' if self.theme_manager.is_dark else 'Claro'}")
+
+    def _rebuild_interface(self):
+        """Rebuild the entire interface with current theme"""
+        try:
+            # Clear current controls
+            self.controls.clear()
+
+            # Rebuild layout with new theme
+            new_layout = self._build_layout()
+            self.controls.extend(new_layout)
+
+            # Update the interface
+            self.update()
+
+        except Exception as e:
+            print(f"Error rebuilding interface: {e}")
     
     def _on_theme_toggle(self, e):
         """Handle theme toggle button click"""

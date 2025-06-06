@@ -42,9 +42,15 @@ class DirectoryConfig:
         config_dir.mkdir(exist_ok=True)
         return config_dir
 
-# Supported File Formats
+# Supported File Formats - OpenCV Compatible
 SUPPORTED_INPUT_FORMATS = [
-    ".tif", ".tiff",  # GeoTIFF files
+    # Basic image formats (OpenCV compatible)
+    ".jpg", ".jpeg",  # JPEG files
+    ".png",           # PNG files
+    ".bmp",           # Bitmap files
+    ".tif", ".tiff",  # TIFF files (basic support)
+
+    # Advanced geospatial formats (require GDAL/Rasterio)
     ".ecw",           # ECW compressed files
     ".jp2",           # JPEG 2000
     ".img",           # ERDAS IMAGINE
@@ -137,7 +143,7 @@ THEME_CONFIG = {
     },
     
     "dark": {
-        # Primary colors (blue scheme) - Improved for dark mode
+        # Primary colors (blue scheme) - Enhanced for dark mode
         "primary": "#60a5fa",
         "primary_variant": "#3b82f6",
         "primary_light": "#93c5fd",
@@ -147,22 +153,22 @@ THEME_CONFIG = {
         "secondary_variant": "#8b5cf6",
         "accent": "#34d399",
 
-        # Background colors - Better contrast
+        # Background colors - Enhanced contrast
         "background": "#0f172a",
         "surface": "#1e293b",
         "surface_variant": "#334155",
         "surface_container": "#475569",
 
-        # Text colors - Improved readability
-        "on_surface": "#f8fafc",
-        "on_surface_variant": "#cbd5e1",
+        # Text colors - Enhanced readability
+        "on_surface": "#ffffff",
+        "on_surface_variant": "#e2e8f0",
         "on_primary": "#0f172a",
-        "on_background": "#f1f5f9",
+        "on_background": "#ffffff",
 
-        # Status colors - Better visibility in dark mode
-        "success": "#34d399",
-        "warning": "#fbbf24",
-        "error": "#f87171",
+        # Status colors - Enhanced visibility in dark mode
+        "success": "#10b981",
+        "warning": "#f59e0b",
+        "error": "#ef4444",
         "info": "#60a5fa",
 
         # Status containers - Improved contrast
@@ -176,9 +182,9 @@ THEME_CONFIG = {
         "border_variant": "#64748b",
         "divider": "#475569",
 
-        # Buttons - Improved contrast
-        "button_primary_bg": "#60a5fa",
-        "button_primary_hover": "#3b82f6",
+        # Buttons - Enhanced contrast for dark mode
+        "button_primary_bg": "#3b82f6",
+        "button_primary_hover": "#2563eb",
         "button_secondary_bg": "#475569",
         "button_secondary_hover": "#64748b",
 
@@ -194,11 +200,22 @@ THEME_CONFIG = {
 }
 
 # Processing Configuration
+import multiprocessing
+
+def get_optimal_cpu_count():
+    """Get optimal CPU count (75% of available cores)"""
+    total_cores = multiprocessing.cpu_count()
+    optimal_cores = max(1, int(total_cores * 0.75))
+    return optimal_cores
+
 PROCESSING_CONFIG = {
     "max_memory_usage": 0.8,  # 80% of available memory
     "chunk_size": 1024,       # Processing chunk size in MB
-    "max_workers": 4,         # Maximum number of worker threads
+    "max_workers": get_optimal_cpu_count(),  # 75% of available CPU cores
+    "cpu_usage_percentage": 0.75,  # Use 75% of available CPU cores
     "progress_update_interval": 0.1,  # Progress update interval in seconds
+    "enable_multiprocessing": True,  # Enable multiprocessing for large files
+    "min_file_size_for_multiprocessing": 50 * 1024 * 1024,  # 50MB minimum for multiprocessing
 }
 
 # Compression Quality Presets

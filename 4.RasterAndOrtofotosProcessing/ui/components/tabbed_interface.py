@@ -12,6 +12,7 @@ from ui.components.progress_display import ProgressDisplay
 from ui.components.processing_options import ProcessingOptions
 from ui.components.results_panel import ResultsPanel
 from core.orthophoto_engine import OrthophotoProcessor
+from core.opencv_processor import OpenCVProcessor
 from config.settings import DirectoryConfig
 import threading
 
@@ -28,8 +29,18 @@ class TabbedInterface(ft.Column):
         self.processing_results = None
         self.is_processing = False
 
-        # Processing engine
+        # Processing engines
         self.processor = OrthophotoProcessor()
+        self.opencv_processor = OpenCVProcessor()
+
+        # Determine which processor to use based on available libraries
+        try:
+            import rasterio
+            self.use_opencv = False
+            print("🗺️ Usando OrthophotoProcessor (GDAL/Rasterio disponible)")
+        except ImportError:
+            self.use_opencv = True
+            print("📷 Usando OpenCVProcessor (GDAL/Rasterio no disponible)")
         
         # Components
         self.file_manager = None
@@ -336,25 +347,48 @@ class TabbedInterface(ft.Column):
         # Get output directory
         output_dir = Path(options.get("output_directory", DirectoryConfig.get_output_dir()))
 
-        # Setup processor callbacks
-        self.processor.set_callbacks(
-            progress_callback=self._on_progress_update,
-            statistics_callback=self._on_statistics_update,
-            error_callback=self._on_error_update
-        )
+        # Choose processor and setup callbacks
+        if self.use_opencv:
+            # Use OpenCV processor
+            current_processor = self.opencv_processor
+            current_processor.set_progress_callback(
+                lambda progress, message: self._on_progress_update(message, progress)
+            )
+            current_processor.set_statistics_callback(self._on_statistics_update)
+        else:
+            # Use GDAL/Rasterio processor
+            current_processor = self.processor
+            current_processor.set_callbacks(
+                progress_callback=self._on_progress_update,
+                statistics_callback=self._on_statistics_update,
+                error_callback=self._on_error_update
+            )
 
         # Start processing in background thread
         def process_files():
             try:
-                results = self.processor.process_files(
-                    input_files=self.selected_files,
-                    output_dir=output_dir,
-                    export_profile=options.get("export_profile", "gis_analysis"),
-                    compression=self._get_compression_method(options.get("compression", "lossless")),
-                    quality=options.get("quality"),
-                    preserve_crs=options.get("preserve_crs", True),
-                    max_workers=2
-                )
+                if self.use_opencv:
+                    # OpenCV processing
+                    compression_method = self._get_opencv_compression_method(options.get("compression", "high_quality"))
+                    results = current_processor.process_files(
+                        input_files=self.selected_files,
+                        output_dir=output_dir,
+                        compression_method=compression_method,
+                        quality=options.get("quality", 90),
+                        preserve_metadata=options.get("preserve_crs", True),
+                        max_workers=None  # Use optimal CPU count (75% of available cores)
+                    )
+                else:
+                    # GDAL/Rasterio processing
+                    results = current_processor.process_files(
+                        input_files=self.selected_files,
+                        output_dir=output_dir,
+                        export_profile=options.get("export_profile", "gis_analysis"),
+                        compression=self._get_compression_method(options.get("compression", "lossless")),
+                        quality=options.get("quality"),
+                        preserve_crs=options.get("preserve_crs", True),
+                        max_workers=None  # Use optimal CPU count (75% of available cores)
+                    )
 
                 # Update results on main thread
                 self.page.run_thread_safe(lambda: self._on_processing_complete(results, output_dir))
@@ -379,7 +413,7 @@ class TabbedInterface(ft.Column):
             self._update_interface()
 
     def _get_compression_method(self, compression_preset: str) -> str:
-        """Convert compression preset to actual compression method"""
+        """Convert compression preset to actual compression method for GDAL"""
         compression_map = {
             "lossless": "LZW",
             "high": "DEFLATE",
@@ -387,6 +421,16 @@ class TabbedInterface(ft.Column):
             "low": "JPEG"
         }
         return compression_map.get(compression_preset, "LZW")
+
+    def _get_opencv_compression_method(self, compression_preset: str) -> str:
+        """Convert compression preset to OpenCV compression method"""
+        opencv_compression_map = {
+            "lossless": "lossless",
+            "high": "high_quality",
+            "medium": "medium",
+            "low": "low"
+        }
+        return opencv_compression_map.get(compression_preset, "high_quality")
 
     def _on_progress_update(self, message: str, progress: float, details: str = ""):
         """Handle progress updates from processor"""

@@ -4,6 +4,7 @@ Professional progress indicators and statistics display
 """
 
 import flet as ft
+import time
 from typing import Dict, Optional, List, Any
 from datetime import datetime, timedelta
 
@@ -70,6 +71,14 @@ class ProgressDisplay(ft.Column):
             visible=self.show_progress_bar
         )
 
+        # ETA text
+        self.eta_text = ft.Text(
+            "",
+            size=12,
+            color=self.theme['on_surface_variant'],
+            visible=self.show_progress_bar
+        )
+
         # Message text
         self.message_text = ft.Text(
             "",
@@ -123,7 +132,10 @@ class ProgressDisplay(ft.Column):
             layout.append(
                 ft.Column([
                     self.progress_bar,
-                    self.progress_text
+                    ft.Row([
+                        self.progress_text,
+                        self.eta_text
+                    ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN)
                 ], spacing=8, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
             )
         
@@ -140,8 +152,8 @@ class ProgressDisplay(ft.Column):
         details: str = ""
     ):
         """
-        Show progress indicator
-        
+        Show progress indicator with enhanced features
+
         Args:
             message: Main progress message
             progress: Progress percentage (0-100) or None for indeterminate
@@ -149,19 +161,35 @@ class ProgressDisplay(ft.Column):
         """
         self.current_message = message
         self.current_details = details
-        
+
         if progress is not None:
             self.current_progress = max(0, min(100, progress))
-        
+
         # Update UI components
         self.message_text.value = message
-        
+
         if self.show_details:
             self.details_text.value = details
-        
+
         if self.show_progress_bar and progress is not None:
             self.progress_bar.value = self.current_progress / 100
             self.progress_text.value = f"{self.current_progress:.1f}%"
+
+            # Calculate and show estimated time remaining
+            if self.start_time and progress > 0:
+                elapsed = time.time() - self.start_time
+                estimated_total = elapsed * (100 / progress)
+                remaining = estimated_total - elapsed
+
+                if remaining > 0:
+                    if remaining < 60:
+                        eta_text = f"ETA: {remaining:.0f}s"
+                    elif remaining < 3600:
+                        eta_text = f"ETA: {remaining/60:.1f}m"
+                    else:
+                        eta_text = f"ETA: {remaining/3600:.1f}h"
+
+                    self.eta_text.value = eta_text
         
         # Update visibility
         self.visible = True
@@ -169,7 +197,7 @@ class ProgressDisplay(ft.Column):
         
         # Start timing if not already started
         if self.start_time is None:
-            self.start_time = datetime.now()
+            self.start_time = time.time()
     
     def update_statistics(self, stats: Dict[str, Any]):
         """Update processing statistics"""
@@ -184,7 +212,13 @@ class ProgressDisplay(ft.Column):
         
         # Processing time
         if self.start_time:
-            elapsed = datetime.now() - self.start_time
+            if isinstance(self.start_time, float):
+                # start_time is a timestamp
+                elapsed_seconds = time.time() - self.start_time
+                elapsed = timedelta(seconds=elapsed_seconds)
+            else:
+                # start_time is a datetime
+                elapsed = datetime.now() - self.start_time
             stats_controls.append(
                 self._create_stat_row("⏱️ Tiempo transcurrido", self._format_duration(elapsed))
             )
@@ -292,6 +326,7 @@ class ProgressDisplay(ft.Column):
         
         self.progress_bar.value = 0
         self.progress_text.value = "0%"
+        self.eta_text.value = ""
         self.message_text.value = ""
         self.details_text.value = ""
         self.statistics_container.content.controls.clear()
@@ -307,6 +342,7 @@ class ProgressDisplay(ft.Column):
         self.progress_bar.color = self.theme['primary']
         self.progress_bar.bgcolor = self.theme.get('surface_variant', '#f1f5f9')
         self.progress_text.color = self.theme['on_surface']
+        self.eta_text.color = self.theme['on_surface_variant']
         self.message_text.color = self.theme['on_surface']
         self.details_text.color = self.theme['on_surface_variant']
         

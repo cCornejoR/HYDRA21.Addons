@@ -32,6 +32,7 @@ from config.orthophoto_config import (
     get_gdal_options, get_export_profile, configure_gdal_environment,
     RESAMPLING_METHODS, COMPRESSION_OPTIONS, MEMORY_CONFIG
 )
+from config.settings import PROCESSING_CONFIG, get_optimal_cpu_count
 
 class OrthophotoProcessor:
     """Enhanced professional orthophoto processing engine with comprehensive logging and validation"""
@@ -110,7 +111,7 @@ class OrthophotoProcessor:
         compression: str = "LZW",
         quality: Optional[int] = None,
         preserve_crs: bool = True,
-        max_workers: int = 2,
+        max_workers: Optional[int] = None,
         test_mode: bool = False
     ) -> Dict[str, Any]:
         """
@@ -129,6 +130,11 @@ class OrthophotoProcessor:
         Returns:
             Processing results dictionary with detailed information
         """
+        # Configure optimal CPU usage
+        if max_workers is None:
+            max_workers = get_optimal_cpu_count()
+            self.logger.info(f"🔧 Usando {max_workers} núcleos de CPU (75% de {get_optimal_cpu_count() * 4 // 3} disponibles)")
+
         # Start operation logging
         operation_name = f"Procesamiento de {len(input_files)} archivo(s)"
         self.logger.start_operation(operation_name, len(input_files))
